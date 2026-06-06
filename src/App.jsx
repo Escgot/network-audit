@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, Search, Users, UserMinus, Heart, Copy, CheckCircle2, Clock } from 'lucide-react';
+import { Upload, Search, Users, UserMinus, Heart, Copy, CheckCircle2, Clock, Check } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
 export default function App() {
@@ -13,6 +13,7 @@ export default function App() {
 
   const triggerToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
+  // Helper to parse file
   const processFile = (data, type) => {
     const tempLinks = { ...userLinks };
     let users = [];
@@ -38,9 +39,10 @@ export default function App() {
   const processPending = (data) => {
     return data.map(item => {
       const username = item.label_values?.find(l => l.label === 'Username')?.value?.toLowerCase();
+      // Calculate days exactly
       const daysAgo = Math.floor((Date.now() / 1000 - item.timestamp) / 86400);
       return { username, daysAgo };
-    }).filter(u => u.username);
+    }).filter(u => u.username).sort((a, b) => b.daysAgo - a.daysAgo); // UX: Oldest first
   };
 
   const handleProcess = async () => {
@@ -71,7 +73,7 @@ export default function App() {
         pending: pendingList
       });
       triggerToast('Analysis complete!');
-    } catch (e) { console.error(e); triggerToast('Error: Invalid JSON files.'); }
+    } catch (e) { console.error(e); triggerToast('Error parsing JSON.'); }
     finally { setIsProcessing(false); }
   };
 
@@ -92,17 +94,21 @@ export default function App() {
           <h1 className="text-5xl font-extrabold tracking-tighter bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">Network Intelligence</h1>
         </div>
 
+        {/* UX Improvement: Visual States for Uploads */}
         <div className="grid md:grid-cols-3 gap-4">
           {['following', 'followers', 'pending'].map((type) => (
-            <label key={type} className="border-2 border-dashed border-white/10 rounded-3xl p-8 bg-white/5 hover:border-cyan-500 transition-all cursor-pointer text-center">
+            <label key={type} className={`border-2 border-dashed rounded-3xl p-8 bg-white/5 transition-all cursor-pointer text-center ${files[type] ? 'border-emerald-500/50' : 'border-white/10 hover:border-cyan-500'}`}>
               <input type="file" className="hidden" onChange={(e) => setFiles(prev => ({ ...prev, [type]: e.target.files[0] }))} />
-              <p className="font-bold capitalize">{type}.json</p>
-              <p className="text-xs text-gray-500 truncate">{files[type]?.name || 'Click to select'}</p>
+              <div className="flex flex-col items-center gap-2">
+                {files[type] ? <Check className="text-emerald-500" /> : <Upload className="text-gray-500" />}
+                <p className="font-bold capitalize">{type}.json</p>
+                <p className="text-xs text-gray-500 truncate max-w-[150px]">{files[type]?.name || 'Click to select'}</p>
+              </div>
             </label>
           ))}
         </div>
 
-        <button onClick={handleProcess} className="w-full py-4 rounded-2xl bg-cyan-600 font-bold hover:bg-cyan-500 transition-all">Analyze Network</button>
+        <button onClick={handleProcess} className="w-full py-4 rounded-2xl bg-cyan-600 font-bold hover:bg-cyan-500 transition-all active:scale-[0.99]">Analyze Network</button>
 
         {results && (
           <div className="space-y-8">
@@ -112,7 +118,7 @@ export default function App() {
                   <Pie data={chartData} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
                     {chartData.map((entry, index) => <Cell key={index} fill={entry.color} />)}
                   </Pie>
-                  <Tooltip contentStyle={{ backgroundColor: '#000', borderRadius: '12px' }} />
+                  <Tooltip contentStyle={{ backgroundColor: '#000', borderRadius: '12px', border: 'none' }} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
@@ -143,17 +149,21 @@ function StandardCard({ title, data, links, color, isPending }) {
 
   return (
     <div className={`border rounded-3xl p-6 h-[500px] flex flex-col ${styles[color]}`}>
-      <div className="mb-4 font-bold text-lg flex items-center gap-2"> {title} <span className="text-xs opacity-50">({data.length})</span></div>
+      <div className="mb-4 font-bold text-lg flex items-center justify-between">
+        {title} <span className="text-xs opacity-50 bg-white/10 px-2 py-1 rounded-full">{data.length}</span>
+      </div>
       <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-2">
         {data.map((item, i) => {
           const username = isPending ? item.username : item;
           return (
-            <div key={i} className="flex justify-between items-center bg-white/5 p-3 rounded-xl hover:bg-white/10 transition-all">
-              <a href={links[username] || `https://instagram.com/${username}`} target="_blank" className="text-sm">@{username}</a>
+            <div key={i} className="flex justify-between items-center bg-white/5 p-3 rounded-xl hover:bg-white/10 transition-all group">
+              <a href={links[username] || `https://instagram.com/${username}`} target="_blank" className="text-sm truncate mr-2">@{username}</a>
               {isPending ? (
-                <div className="text-[10px] opacity-70 flex items-center gap-1"><Clock size={10} /> {item.daysAgo}d</div>
+                <div className={`text-[10px] flex items-center gap-1 px-2 py-1 rounded ${item.daysAgo > 365 ? 'bg-rose-500/20 text-rose-400' : 'opacity-50'}`}>
+                  <Clock size={10} /> {item.daysAgo}d
+                </div>
               ) : (
-                <button onClick={() => navigator.clipboard.writeText(username)}><Copy size={14} /></button>
+                <button onClick={() => navigator.clipboard.writeText(username)} className="opacity-0 group-hover:opacity-100 transition-opacity"><Copy size={14} /></button>
               )}
             </div>
           );
