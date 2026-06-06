@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+/* In v4, custom theme colors go here instead of a javascript config file */
+@theme {
+  --color-dark-bg: #050505;
+}
+
+body {
+  background-color: var(--color-dark-bg);
+  color: #ffffff;
+}
