@@ -1,6 +1,5 @@
 Here is the complete raw markdown code for your `README.md` file:
 
-```markdown
 # Network Intelligence
 
 Network Intelligence is a high-performance auditing tool designed to help you manage your social media connections. It allows you to analyze your following, follower, and pending request data to gain insights into your network growth, social hygiene, and relationship stability.
@@ -24,23 +23,20 @@ You need a recent version of [Node.js](https://nodejs.org/) installed on your ma
 
 1. Clone the repository:
    ```bash
-   git clone <your-repo-url>
+   git clone <https://github.com/Escgot/network-audit.git>
    cd network-intelligence
-
-```
+   ```
 
 2. Install the dependencies:
-```bash
-npm install
-
-```
+   ```bash
+   npm install
+   ```
 
 
 3. Start the development server:
-```bash
-npm run dev
-
-```
+   ```bash
+   npm run dev
+   ```
 
 
 
@@ -67,8 +63,6 @@ npm run dev
 
 ## License
 
-This project is open-source and available for personal use.
-
 ```
-
+This project is open-source and available for personal use.
 ```
