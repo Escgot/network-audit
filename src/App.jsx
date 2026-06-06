@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, Search, Users, UserMinus, Heart, Copy, CheckCircle2, TrendingUp } from 'lucide-react';
+import { Upload, Search, Users, UserMinus, Heart, Copy, CheckCircle2 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
-import { FixedSizeList as List } from 'react-window';
 
 export default function App() {
   const [files, setFiles] = useState({ following: null, followers: null });
@@ -14,7 +13,6 @@ export default function App() {
 
   const triggerToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
-  // ... (Keep your processFile and handleProcess logic the same as before) ...
   const processFile = (data, type) => {
     const tempLinks = { ...userLinks };
     let users = [];
@@ -59,7 +57,7 @@ export default function App() {
         mutuals: followingList.filter(u => followersSet.has(u))
       });
       triggerToast('Analysis complete!');
-    } catch { triggerToast('Error: Invalid JSON files.'); }
+    } catch (e) { triggerToast('Error parsing files.'); console.error(e); }
     finally { setIsProcessing(false); }
   };
 
@@ -80,7 +78,6 @@ export default function App() {
           <h1 className="text-5xl font-extrabold tracking-tighter bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">Network Intelligence</h1>
         </div>
 
-        {/* Uploads */}
         <div className="grid md:grid-cols-2 gap-4">
           {['following', 'followers'].map((type) => (
             <label key={type} className="border-2 border-dashed border-white/10 rounded-3xl p-8 bg-white/5 hover:border-cyan-500 transition-all cursor-pointer text-center">
@@ -95,7 +92,6 @@ export default function App() {
 
         {results && (
           <div className="space-y-8">
-            {/* Dashboard */}
             <div className="bg-white/5 p-6 rounded-3xl border border-white/10 h-64 flex items-center justify-center">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -111,9 +107,9 @@ export default function App() {
             <input type="text" placeholder="Search usernames..." onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 outline-none focus:border-cyan-500" />
 
             <div className="grid md:grid-cols-3 gap-6">
-              <VirtualizedCard title="Not Following Back" data={results.notFollowingBack.filter(u => u.includes(searchTerm))} links={userLinks} color="rose" />
-              <VirtualizedCard title="Fans" data={results.fans.filter(u => u.includes(searchTerm))} links={userLinks} color="cyan" />
-              <VirtualizedCard title="Mutuals" data={results.mutuals.filter(u => u.includes(searchTerm))} links={userLinks} color="emerald" />
+              <StandardCard title="Not Following Back" data={results.notFollowingBack.filter(u => u.includes(searchTerm))} links={userLinks} color="rose" />
+              <StandardCard title="Fans" data={results.fans.filter(u => u.includes(searchTerm))} links={userLinks} color="cyan" />
+              <StandardCard title="Mutuals" data={results.mutuals.filter(u => u.includes(searchTerm))} links={userLinks} color="emerald" />
             </div>
           </div>
         )}
@@ -122,22 +118,24 @@ export default function App() {
   );
 }
 
-function VirtualizedCard({ title, data, links, color }) {
-  const Row = ({ index, style }) => (
-    <div style={style} className="px-4 py-1">
-      <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl hover:bg-white/10 transition-all">
-        <a href={links[data[index]]} target="_blank" className="text-sm">@{data[index]}</a>
-        <button onClick={() => navigator.clipboard.writeText(data[index])}><Copy size={14} /></button>
-      </div>
-    </div>
-  );
+function StandardCard({ title, data, links, color }) {
+  const styles = {
+    rose: "bg-rose-500/10 text-rose-400 border-rose-500/20",
+    cyan: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
+    emerald: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+  };
 
   return (
-    <div className="bg-white/5 border border-white/10 rounded-3xl p-6 h-[500px] flex flex-col">
-      <div className="mb-4 font-bold text-lg flex items-center gap-2"> {title} <span className="text-xs opacity-50">({data.length})</span></div>
-      <List height={400} itemCount={data.length} itemSize={60} width="100%">
-        {Row}
-      </List>
+    <div className={`border rounded-3xl p-6 h-[500px] flex flex-col ${styles[color]}`}>
+      <div className="mb-4 font-bold text-lg flex items-center gap-2">{title} <span className="opacity-50">({data.length})</span></div>
+      <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-2">
+        {data.map(u => (
+          <div key={u} className="flex justify-between items-center bg-white/5 p-3 rounded-xl hover:bg-white/10 transition-all">
+            <a href={links[u]} target="_blank" rel="noopener noreferrer" className="text-sm">@{u}</a>
+            <button onClick={() => navigator.clipboard.writeText(u)}><Copy size={14} /></button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
