@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Upload, Search, Check, Copy, Clock, ArrowUpDown, ArrowRightLeft,
-  Users, History, Send, UserMinus, Star, UserCheck, Link as LinkIcon, Unlink, FileJson
+  Users, History, Send, UserMinus, Star, UserCheck, Link as LinkIcon, Unlink, FileJson, Calendar
 } from 'lucide-react';
 import AppLogo from './assets/logo.png';
 
@@ -27,7 +27,7 @@ export default function App() {
     mutuals: { type: 'alpha', dir: 'asc' },
     stillConnected: { type: 'alpha', dir: 'asc' },
     disconnected: { type: 'alpha', dir: 'asc' },
-    pending: { type: 'time', dir: 'asc' }
+    pending: { type: 'time', dir: 'desc' } // Default to newest first
   });
 
   const triggerToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
@@ -90,7 +90,6 @@ export default function App() {
       if (processed.currFollowing && processed.currFollowers) {
         const activeFollowersSet = new Set(processed.currFollowers.map(u => u.username));
         const activeFollowingSet = new Set(processed.currFollowing.map(u => u.username));
-
         outResults.notFollowingBack = processed.currFollowing.filter(u => !activeFollowersSet.has(u.username));
         outResults.fans = processed.currFollowers.filter(u => !activeFollowingSet.has(u.username));
         outResults.mutuals = processed.currFollowing.filter(u => activeFollowersSet.has(u.username));
@@ -115,9 +114,21 @@ export default function App() {
       if (files.pending) {
         const pendingData = await loadJson(files.pending);
         outResults.pending = pendingData.map((item, idx) => {
-          const username = item.label_values?.find(l => l.label === 'Username')?.value?.toLowerCase();
-          const daysAgo = Math.floor((Date.now() / 1000 - item.timestamp) / 86400);
-          return username ? { username, daysAgo, fileIndex: idx } : null;
+          const listData = item.string_list_data?.[0] || {};
+          const username = (listData.value || item.title || item.label_values?.find(l => l.label === 'Username')?.value)?.toLowerCase();
+
+          // Architecture for temporal data extraction
+          const unixTime = listData.timestamp || item.timestamp;
+          const dateObj = unixTime ? new Date(unixTime * 1000) : null;
+
+          const isoDate = dateObj ? dateObj.toISOString().split('T')[0] : 'Unknown Date';
+          const prettyDate = dateObj ? dateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'Unknown Date';
+          const daysAgo = unixTime ? Math.floor((Date.now() / 1000 - unixTime) / 86400) : 0;
+
+          // Composite search string index for unified querying
+          const searchString = `${username} ${isoDate} ${prettyDate}`.toLowerCase();
+
+          return username ? { username, daysAgo, fileIndex: idx, isoDate, prettyDate, searchString } : null;
         }).filter(Boolean);
       }
 
@@ -168,7 +179,6 @@ export default function App() {
           </h1>
         </motion.div>
 
-        {/* ALWAYS VISIBLE: Input Interface Matrix */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white/[0.02] p-6 rounded-3xl border border-white/5 shadow-2xl shadow-black/50 space-y-5 backdrop-blur-xl">
           <div className="flex justify-between items-center px-2">
             <h2 className="text-sm font-bold text-gray-400 tracking-widest uppercase flex items-center gap-2">
@@ -185,13 +195,7 @@ export default function App() {
               { id: 'oldFollowers', name: 'Old Followers' },
               { id: 'pending', name: 'Pending Requests' },
             ].map((fileConfig) => (
-              <FileUploadZone
-                key={fileConfig.id}
-                id={fileConfig.id}
-                name={fileConfig.name}
-                file={files[fileConfig.id]}
-                setFile={handleSetFile}
-              />
+              <FileUploadZone key={fileConfig.id} id={fileConfig.id} name={fileConfig.name} file={files[fileConfig.id]} setFile={handleSetFile} />
             ))}
           </div>
           <button onClick={handleProcess} disabled={isProcessing} className="w-full py-4 rounded-2xl bg-gradient-to-r from-cyan-600 to-emerald-600 font-bold hover:from-cyan-500 hover:to-emerald-500 shadow-lg shadow-cyan-900/10 hover:shadow-cyan-500/20 hover:-translate-y-0.5 transition-all active:translate-y-0 active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2">
@@ -199,7 +203,6 @@ export default function App() {
           </button>
         </motion.div>
 
-        {/* Workspace Navigation & Results */}
         {hasActiveResults && (
           <div className="space-y-6">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/[0.02] p-2 rounded-2xl border border-white/5 sticky top-4 z-40 backdrop-blur-2xl shadow-xl shadow-black/40">
@@ -211,7 +214,13 @@ export default function App() {
 
               <div className="relative flex-1 max-w-sm shrink-0 group">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-cyan-400 transition-colors" size={16} />
-                <input type="text" placeholder="Filter current view..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value.toLowerCase())} className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 outline-none focus:border-cyan-500/50 text-sm transition-all placeholder:text-gray-600 focus:bg-white/[0.08] focus:shadow-[0_0_20px_-5px_rgba(6,182,212,0.1)]" />
+                <input
+                  type="text"
+                  placeholder={activeTab === 'pending' ? "Search by handle, year, or month..." : "Filter current view..."}
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value.toLowerCase())}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 outline-none focus:border-cyan-500/50 text-sm transition-all placeholder:text-gray-600 focus:bg-white/[0.08] focus:shadow-[0_0_20px_-5px_rgba(6,182,212,0.1)]"
+                />
               </div>
             </motion.div>
 
@@ -244,7 +253,7 @@ export default function App() {
               {activeTab === 'pending' && (
                 <motion.div key="pending" variants={containerVariants} initial="hidden" animate="show" exit="exit" className="max-w-2xl mx-auto">
                   <motion.div variants={itemVariants} className="h-full">
-                    {results.pending ? <StandardCard title="Pending Requests" icon={Send} data={results.pending.filter(u => u.username.includes(searchTerm))} sort={sortConfig.pending} onSort={() => cycleSort('pending')} color="purple" links={userLinks} isPending={true} /> : <EmptyState icon={Send} title="No Outbound Data" message="Upload your Pending Requests JSON to view history." color="purple" />}
+                    {results.pending ? <GroupedPendingCard title="Outbound Requests" icon={Send} data={results.pending} searchTerm={searchTerm} sort={sortConfig.pending} onSort={() => cycleSort('pending')} color="purple" links={userLinks} /> : <EmptyState icon={Send} title="No Outbound Data" message="Upload your Pending Requests JSON to view history." color="purple" />}
                   </motion.div>
                 </motion.div>
               )}
@@ -256,41 +265,31 @@ export default function App() {
   );
 }
 
-// --- NEW COMPONENT: Interactive File Upload Zone ---
+// --- INTERACTIVE COMPONENTS ---
 function FileUploadZone({ id, name, file, setFile }) {
   const [isDragging, setIsDragging] = useState(false);
 
   const handleDrag = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setIsDragging(true);
-    } else if (e.type === 'dragleave') {
-      setIsDragging(false);
-    }
+    if (e.type === 'dragenter' || e.type === 'dragover') setIsDragging(true);
+    else if (e.type === 'dragleave') setIsDragging(false);
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      setFile(id, e.dataTransfer.files[0]);
-    }
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) setFile(id, e.dataTransfer.files[0]);
   };
 
   const handleChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(id, e.target.files[0]);
-    }
+    if (e.target.files && e.target.files[0]) setFile(id, e.target.files[0]);
   };
 
   return (
     <div
-      onDragEnter={handleDrag}
-      onDragLeave={handleDrag}
-      onDragOver={handleDrag}
-      onDrop={handleDrop}
+      onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}
       className={`relative border-2 border-dashed rounded-2xl p-3 transition-all duration-300 ease-out flex flex-col justify-center items-center h-28 overflow-hidden group ${isDragging
         ? 'border-cyan-400 bg-cyan-500/10 scale-[1.02] z-10 shadow-[0_0_30px_-5px_rgba(6,182,212,0.3)]'
         : file
@@ -298,36 +297,16 @@ function FileUploadZone({ id, name, file, setFile }) {
           : 'border-white/10 bg-white/[0.02] hover:border-cyan-500/30 hover:bg-white/[0.04]'
         }`}
     >
-      {/* Invisible actual file input */}
-      <input
-        type="file"
-        accept=".json"
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-        onChange={handleChange}
-      />
-
+      <input type="file" accept=".json" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" onChange={handleChange} />
       <div className="relative z-10 flex flex-col items-center justify-center">
         <div className="h-10 flex items-center justify-center mb-1">
           <AnimatePresence mode="wait">
             {file ? (
-              <motion.div
-                key="check"
-                initial={{ scale: 0, opacity: 0, rotate: -45 }}
-                animate={{ scale: 1, opacity: 1, rotate: 0 }}
-                exit={{ scale: 0, opacity: 0 }}
-                transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                className="w-8 h-8 bg-emerald-500/20 rounded-full flex items-center justify-center border border-emerald-500/30"
-              >
+              <motion.div key="check" initial={{ scale: 0, opacity: 0, rotate: -45 }} animate={{ scale: 1, opacity: 1, rotate: 0 }} exit={{ scale: 0, opacity: 0 }} transition={{ type: "spring", stiffness: 300, damping: 20 }} className="w-8 h-8 bg-emerald-500/20 rounded-full flex items-center justify-center border border-emerald-500/30">
                 <Check size={16} className="text-emerald-400" />
               </motion.div>
             ) : (
-              <motion.div
-                key="upload"
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.8, opacity: 0 }}
-                className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-300 ${isDragging ? 'bg-cyan-500/20 text-cyan-400' : 'bg-white/5 text-gray-500 group-hover:text-cyan-400 group-hover:bg-cyan-500/10'}`}
-              >
+              <motion.div key="upload" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-300 ${isDragging ? 'bg-cyan-500/20 text-cyan-400' : 'bg-white/5 text-gray-500 group-hover:text-cyan-400 group-hover:bg-cyan-500/10'}`}>
                 <motion.div animate={isDragging ? { y: [-2, 2, -2] } : {}} transition={{ repeat: Infinity, duration: 1, ease: "easeInOut" }}>
                   <Upload size={16} />
                 </motion.div>
@@ -335,24 +314,10 @@ function FileUploadZone({ id, name, file, setFile }) {
             )}
           </AnimatePresence>
         </div>
-
-        <span className={`font-bold text-[11px] uppercase tracking-wider block text-center transition-colors duration-300 ${file ? 'text-emerald-400' : isDragging ? 'text-cyan-300' : 'text-gray-300 group-hover:text-cyan-300'}`}>
-          {name}
-        </span>
-        <span className={`text-[10px] truncate w-full mt-1 px-2 text-center block font-medium transition-colors ${file ? 'text-emerald-500' : 'text-gray-600 group-hover:text-gray-400'}`}>
-          {file ? file.name : (isDragging ? 'Drop it here!' : 'Click or drag JSON')}
-        </span>
+        <span className={`font-bold text-[11px] uppercase tracking-wider block text-center transition-colors duration-300 ${file ? 'text-emerald-400' : isDragging ? 'text-cyan-300' : 'text-gray-300 group-hover:text-cyan-300'}`}>{name}</span>
+        <span className={`text-[10px] truncate w-full mt-1 px-2 text-center block font-medium transition-colors ${file ? 'text-emerald-500' : 'text-gray-600 group-hover:text-gray-400'}`}>{file ? file.name : (isDragging ? 'Drop it here!' : 'Click or drag JSON')}</span>
       </div>
-
-      {/* Success ripple effect */}
-      {file && (
-        <motion.div
-          initial={{ scale: 0, opacity: 0.5 }}
-          animate={{ scale: 4, opacity: 0 }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-          className="absolute inset-0 bg-emerald-500 rounded-full z-0 origin-center pointer-events-none"
-        />
-      )}
+      {file && <motion.div initial={{ scale: 0, opacity: 0.5 }} animate={{ scale: 4, opacity: 0 }} transition={{ duration: 0.8, ease: "easeOut" }} className="absolute inset-0 bg-emerald-500 rounded-full z-0 origin-center pointer-events-none" />}
     </div>
   );
 }
@@ -361,9 +326,7 @@ function NavTab({ id, icon, label, active, set }) {
   const isActive = active === id;
   return (
     <button onClick={() => set(id)} className={`relative flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-colors whitespace-nowrap z-10 ${isActive ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}>
-      {isActive && (
-        <motion.div layoutId="activeTabIndicator" className="absolute inset-0 bg-white/10 rounded-lg -z-10" transition={{ type: "tween", ease: "easeInOut", duration: 0.2 }} />
-      )}
+      {isActive && <motion.div layoutId="activeTabIndicator" className="absolute inset-0 bg-white/10 rounded-lg -z-10" transition={{ type: "tween", ease: "easeInOut", duration: 0.2 }} />}
       {icon} <span>{label}</span>
     </button>
   );
@@ -381,23 +344,20 @@ function EmptyState({ icon: Icon, title, message, color }) {
 
   return (
     <div className={`border rounded-3xl p-6 h-[500px] flex flex-col items-center justify-center text-center ${colorMap[color]}`}>
-      <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${colorMap[color].split(' ')[0]} border ${colorMap[color].split(' ')[2]}`}>
-        <Icon size={28} className="opacity-80" />
-      </div>
+      <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${colorMap[color].split(' ')[0]} border ${colorMap[color].split(' ')[2]}`}><Icon size={28} className="opacity-80" /></div>
       <h3 className="font-bold text-lg mb-2 text-white">{title}</h3>
       <p className="text-sm opacity-70 max-w-[200px]">{message}</p>
     </div>
   );
 }
 
-function StandardCard({ title, icon: Icon, data, sort, onSort, color, links, isPending }) {
+function StandardCard({ title, icon: Icon, data, sort, onSort, color, links }) {
   const styles = {
     rose: "bg-rose-500/[0.02] text-rose-400 border-rose-500/10 hover:border-rose-500/30 hover:shadow-[0_0_30px_-5px_rgba(244,63,94,0.12)]",
     cyan: "bg-cyan-500/[0.02] text-cyan-400 border-cyan-500/10 hover:border-cyan-500/30 hover:shadow-[0_0_30px_-5px_rgba(6,182,212,0.12)]",
     emerald: "bg-emerald-500/[0.02] text-emerald-400 border-emerald-500/10 hover:border-emerald-500/30 hover:shadow-[0_0_30px_-5px_rgba(16,185,129,0.12)]",
     teal: "bg-teal-500/[0.02] text-teal-400 border-teal-500/10 hover:border-teal-500/30 hover:shadow-[0_0_30px_-5px_rgba(20,184,166,0.12)]",
-    orange: "bg-orange-500/[0.02] text-orange-400 border-orange-500/10 hover:border-orange-500/30 hover:shadow-[0_0_30px_-5px_rgba(249,115,22,0.12)]",
-    purple: "bg-purple-500/[0.02] text-purple-400 border-purple-500/10 hover:border-purple-500/30 hover:shadow-[0_0_30px_-5px_rgba(168,85,247,0.12)]"
+    orange: "bg-orange-500/[0.02] text-orange-400 border-orange-500/10 hover:border-orange-500/30 hover:shadow-[0_0_30px_-5px_rgba(249,115,22,0.12)]"
   };
 
   const getSortBadgeLabel = () => sort.type === 'alpha' ? (sort.dir === 'asc' ? 'A-Z' : 'Z-A') : (sort.dir === 'asc' ? 'Oldest' : 'Newest');
@@ -405,22 +365,16 @@ function StandardCard({ title, icon: Icon, data, sort, onSort, color, links, isP
   const sortedItems = useMemo(() => {
     return [...data].sort((a, b) => {
       if (sort.type === 'alpha') return sort.dir === 'asc' ? a.username.localeCompare(b.username) : b.username.localeCompare(a.username);
-      const stepA = a.daysAgo !== undefined ? a.daysAgo : a.fileIndex;
-      const stepB = b.daysAgo !== undefined ? b.daysAgo : b.fileIndex;
-      return sort.dir === 'asc' ? stepB - stepA : stepA - stepB;
+      return sort.dir === 'asc' ? b.fileIndex - a.fileIndex : a.fileIndex - b.fileIndex;
     });
   }, [data, sort]);
 
-  // VIRTUALIZATION LOGIC
-  // We use a simple ref and state to only render items when scrolling.
-  // We set a fixed height for items to calculate the window.
   const [scrollTop, setScrollTop] = useState(0);
-  const itemHeight = 60; // Approximate height of each row in px
-  const containerHeight = 440; // Approx visible area in px
-  const buffer = 5; // How many extra items to render off-screen
+  const itemHeight = 60;
+  const containerHeight = 440;
+  const buffer = 5;
 
   const handleScroll = (e) => setScrollTop(e.target.scrollTop);
-
   const startIndex = Math.floor(scrollTop / itemHeight);
   const endIndex = Math.min(sortedItems.length - 1, Math.floor((scrollTop + containerHeight) / itemHeight) + buffer);
 
@@ -432,9 +386,7 @@ function StandardCard({ title, icon: Icon, data, sort, onSort, color, links, isP
     <div className={`border rounded-3xl p-5 h-[500px] flex flex-col transition-all duration-300 ease-out hover:-translate-y-1 ${styles[color]}`}>
       <div className="mb-5 flex items-center justify-between pb-4 border-b border-white/5">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-white/5 shadow-inner transition-transform duration-300 group-hover:scale-105">
-            <Icon size={18} />
-          </div>
+          <div className="p-2 rounded-xl bg-white/5 shadow-inner transition-transform duration-300 group-hover:scale-105"><Icon size={18} /></div>
           <div>
             <span className="font-bold text-lg text-white tracking-tight block leading-none">{title}</span>
             <span className="text-[11px] font-semibold text-gray-500 tracking-wider uppercase mt-1 block">{data.length} Accounts</span>
@@ -446,35 +398,126 @@ function StandardCard({ title, icon: Icon, data, sort, onSort, color, links, isP
       </div>
 
       <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar" onScroll={handleScroll}>
-        {/* Placeholder spacer to maintain scrollbar size */}
         <div style={{ height: paddingTop }}></div>
-
         {visibleItems.map((item) => (
           <div key={item.username} className="flex justify-between items-center bg-black/20 hover:bg-white/[0.04] p-3.5 mb-1.5 rounded-xl border border-white/[0.01] hover:border-white/5 transition-all duration-200 ease-out group">
             <a href={links[item.username] || `https://instagram.com/${item.username}`} target="_blank" rel="noopener noreferrer" className="text-sm font-medium tracking-tight text-gray-400 group-hover:text-white group-hover:translate-x-1 transform transition-all duration-200 truncate max-w-[70%]">
               @{item.username}
             </a>
-            {isPending ? (
-              <div className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${item.daysAgo > 180 ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-white/5 text-gray-400 border-white/10'}`}>
-                <Clock size={10} /> {item.daysAgo}d
-              </div>
-            ) : (
-              <button onClick={() => navigator.clipboard.writeText(item.username)} className="opacity-0 group-hover:opacity-100 p-1.5 bg-white/5 hover:bg-white/10 active:scale-90 rounded-lg text-gray-400 hover:text-white transition-all shadow-sm border border-white/5">
-                <Copy size={13} />
-              </button>
-            )}
+            <button onClick={() => navigator.clipboard.writeText(item.username)} className="opacity-0 group-hover:opacity-100 p-1.5 bg-white/5 hover:bg-white/10 active:scale-90 rounded-lg text-gray-400 hover:text-white transition-all shadow-sm border border-white/5">
+              <Copy size={13} />
+            </button>
           </div>
         ))}
-
-        {/* Placeholder spacer to maintain scrollbar size */}
         <div style={{ height: paddingBottom }}></div>
+        {data.length === 0 && <div className="h-full flex flex-col items-center justify-center text-center p-6 opacity-30"><span className="text-sm font-medium text-white">List is empty</span></div>}
+      </div>
+    </div>
+  );
+}
 
-        {data.length === 0 && (
+// --- NEW COMPONENT: Outbound Temporal Matrix ---
+function GroupedPendingCard({ title, icon: Icon, data, sort, onSort, color, links, searchTerm }) {
+  const styles = {
+    purple: "bg-purple-500/[0.02] text-purple-400 border-purple-500/10 hover:border-purple-500/30 hover:shadow-[0_0_30px_-5px_rgba(168,85,247,0.12)]"
+  };
+
+  const getSortBadgeLabel = () => sort.type === 'alpha' ? (sort.dir === 'asc' ? 'A-Z' : 'Z-A') : (sort.dir === 'asc' ? 'Oldest First' : 'Newest First');
+
+  const groupedData = useMemo(() => {
+    // 1. Filter first
+    const filtered = data.filter(item => item.searchString.includes(searchTerm));
+
+    // 2. Group by Date String
+    const groups = filtered.reduce((acc, item) => {
+      if (!acc[item.isoDate]) {
+        acc[item.isoDate] = { prettyDate: item.prettyDate, timestamp: item.timestamp, items: [] };
+      }
+      acc[item.isoDate].items.push(item);
+      return acc;
+    }, {});
+
+    // 3. Sort Group Headers (Time-based or Alpha)
+    const sortedGroupKeys = Object.keys(groups).sort((a, b) => {
+      const timeA = groups[a].timestamp;
+      const timeB = groups[b].timestamp;
+      return sort.type === 'time' && sort.dir === 'asc' ? timeA - timeB : timeB - timeA;
+    });
+
+    // 4. Sort Items within the Groups
+    sortedGroupKeys.forEach(key => {
+      groups[key].items.sort((a, b) => {
+        if (sort.type === 'alpha') return sort.dir === 'asc' ? a.username.localeCompare(b.username) : b.username.localeCompare(a.username);
+        return sort.dir === 'asc' ? a.timestamp - b.timestamp : b.timestamp - a.timestamp;
+      });
+    });
+
+    return { keys: sortedGroupKeys, map: groups, totalCount: filtered.length };
+  }, [data, sort, searchTerm]);
+
+  return (
+    <div className={`border rounded-3xl p-5 h-[650px] flex flex-col transition-all duration-300 ease-out hover:-translate-y-1 ${styles[color] || styles.purple}`}>
+      {/* Header Section */}
+      <div className="mb-5 flex items-center justify-between pb-4 border-b border-white/5">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-white/5 shadow-inner transition-transform duration-300 hover:scale-105">
+            <Icon size={18} />
+          </div>
+          <div>
+            <span className="font-bold text-lg text-white tracking-tight block leading-none">{title}</span>
+            <span className="text-[11px] font-semibold text-gray-500 tracking-wider uppercase mt-1 block">{groupedData.totalCount} Total Requests</span>
+          </div>
+        </div>
+        <button onClick={onSort} className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 active:scale-95 px-3 py-1.5 rounded-xl transition-all text-[10px] font-bold tracking-wider uppercase text-white shadow-inner border border-white/[0.02]">
+          <span>{getSortBadgeLabel()}</span><ArrowUpDown size={12} className="opacity-60" />
+        </button>
+      </div>
+
+      {/* Scrollable Container */}
+      <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+        {groupedData.keys.length > 0 ? (
+          groupedData.keys.map(dateKey => {
+            const group = groupedData.map[dateKey];
+            return (
+              <div key={dateKey} className="mb-6 last:mb-0">
+                {/* Native Sticky Date Header */}
+                <div className="sticky top-0 z-10 bg-[#0a0a0a]/95 backdrop-blur-md py-2 mb-2 border-b border-white/5 flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <Calendar size={12} className="text-purple-500" />
+                    <span className="text-xs font-bold text-purple-400 uppercase tracking-widest">{group.prettyDate}</span>
+                  </div>
+                  <span className="text-[10px] text-gray-500 font-semibold bg-white/5 px-2 py-0.5 rounded-md">{group.items.length} requests</span>
+                </div>
+
+                {/* Items */}
+                <div className="space-y-1.5">
+                  {group.items.map(item => (
+                    <div key={item.username} className="flex justify-between items-center bg-black/20 hover:bg-white/[0.04] p-3 rounded-xl border border-white/[0.01] hover:border-white/5 transition-all duration-200 group">
+                      <a href={links[item.username] || `https://instagram.com/${item.username}`} target="_blank" rel="noopener noreferrer" className="text-sm font-medium tracking-tight text-gray-400 group-hover:text-white group-hover:translate-x-1 transform transition-all duration-200 truncate max-w-[70%]">
+                        @{item.username}
+                      </a>
+                      <div className="flex items-center gap-2">
+                        <div className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 px-2 py-1 rounded-md border ${item.daysAgo > 180 ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-white/5 text-gray-400 border-white/10'}`}>
+                          <Clock size={10} /> {item.daysAgo}d
+                        </div>
+                        <button onClick={() => navigator.clipboard.writeText(item.username)} className="opacity-0 group-hover:opacity-100 p-1.5 bg-white/5 hover:bg-white/10 active:scale-90 rounded-lg text-gray-400 hover:text-white transition-all border border-white/5">
+                          <Copy size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })
+        ) : (
           <div className="h-full flex flex-col items-center justify-center text-center p-6 opacity-30">
-            <span className="text-sm font-medium text-white">List is empty</span>
+            <Calendar size={32} className="mb-4 opacity-50" />
+            <span className="text-sm font-medium text-white">No requests match query</span>
           </div>
         )}
       </div>
     </div>
   );
 }
+const filteredCount = (data, searchTerm) => data.filter(d => d.searchString.includes(searchTerm)).length;
