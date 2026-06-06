@@ -5,7 +5,8 @@ export default function App() {
   const [followingFile, setFollowingFile] = useState(null);
   const [followersFile, setFollowersFile] = useState(null);
   const [results, setResults] = useState(null);
-  const [userLinks, setUserLinks] = useState({}); // Stores { username: url }
+  const [searchTerm, setSearchTerm] = useState(''); // New search state
+  const [userLinks, setUserLinks] = useState({});
   const [isProcessing, setIsProcessing] = useState(false);
 
   const processFile = (data, type) => {
@@ -21,7 +22,6 @@ export default function App() {
         return username;
       });
     } else {
-      // Followers file structure
       const list = Array.isArray(data) ? data : [];
       users = list.map(item => {
         const username = item.string_list_data?.[0]?.value?.toLowerCase();
@@ -42,7 +42,7 @@ export default function App() {
     }
 
     setIsProcessing(true);
-    setUserLinks({}); // Reset links
+    setUserLinks({});
 
     const readJson = (file) => new Promise((resolve) => {
       const reader = new FileReader();
@@ -73,6 +73,9 @@ export default function App() {
     }
   };
 
+  // Helper to filter lists based on search term
+  const filterList = (list) => list.filter(user => user.includes(searchTerm.toLowerCase()));
+
   return (
     <div className="min-h-screen p-8 font-sans bg-black text-white">
       <div className="max-w-5xl mx-auto space-y-12">
@@ -99,12 +102,24 @@ export default function App() {
           </button>
         </div>
 
+        {results && (
+          <div className="mb-8">
+            <input
+              type="text"
+              placeholder="Search by username..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-6 py-4 text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500 transition-colors"
+            />
+          </div>
+        )}
+
         <AnimatePresence>
           {results && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <ResultCard title="Not Following Back" data={results.notFollowingBack} links={userLinks} accent="border-rose-500/50" textAccent="text-rose-400" />
-              <ResultCard title="Fans" data={results.fans} links={userLinks} accent="border-cyan-500/50" textAccent="text-cyan-400" />
-              <ResultCard title="Mutuals" data={results.mutuals} links={userLinks} accent="border-emerald-500/50" textAccent="text-emerald-400" />
+              <ResultCard title="Not Following Back" data={filterList(results.notFollowingBack)} links={userLinks} accent="border-rose-500/50" textAccent="text-rose-400" />
+              <ResultCard title="Fans" data={filterList(results.fans)} links={userLinks} accent="border-cyan-500/50" textAccent="text-cyan-400" />
+              <ResultCard title="Mutuals" data={filterList(results.mutuals)} links={userLinks} accent="border-emerald-500/50" textAccent="text-emerald-400" />
             </motion.div>
           )}
         </AnimatePresence>
