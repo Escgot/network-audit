@@ -1,32 +1,34 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, Search, Users, UserMinus, Heart, Clock, ExternalLink, CheckCircle2 } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { Upload, Search, Users, UserMinus, Heart, Copy, CheckCircle2, Clock } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
 export default function App() {
   const [files, setFiles] = useState({ following: null, followers: null, pending: null });
   const [results, setResults] = useState(null);
-  const [activeTab, setActiveTab] = useState('notFollowingBack');
   const [searchTerm, setSearchTerm] = useState('');
   const [userLinks, setUserLinks] = useState({});
   const [isProcessing, setIsProcessing] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const triggerToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
   const processFile = (data, type) => {
     const tempLinks = { ...userLinks };
     let users = [];
     if (type === 'following') {
       const list = data.relationships_following || [];
-      list.forEach(item => {
+      users = list.map(item => {
         const username = item.title?.toLowerCase();
         if (username) tempLinks[username] = item.string_list_data?.[0]?.href || '#';
-        users.push(username);
+        return username;
       });
     } else if (type === 'followers') {
       const list = Array.isArray(data) ? data : [];
-      list.forEach(item => {
+      users = list.map(item => {
         const username = item.string_list_data?.[0]?.value?.toLowerCase();
         if (username) tempLinks[username] = item.string_list_data?.[0]?.href || '#';
-        users.push(username);
+        return username;
       });
     }
     setUserLinks(prev => ({ ...prev, ...tempLinks }));
@@ -35,120 +37,128 @@ export default function App() {
 
   const processPending = (data) => {
     return data.map(item => {
-      const usernameObj = item.label_values.find(l => l.label === 'Username');
-      return {
-        username: usernameObj?.value?.toLowerCase(),
-        timestamp: item.timestamp
-      };
+      const username = item.label_values?.find(l => l.label === 'Username')?.value?.toLowerCase();
+      const daysAgo = Math.floor((Date.now() / 1000 - item.timestamp) / 86400);
+      return { username, daysAgo };
     }).filter(u => u.username);
   };
 
   const handleProcess = async () => {
-    if (!files.following || !files.followers || !files.pending) return;
+    if (!files.following || !files.followers || !files.pending) return triggerToast('Please upload all 3 files.');
     setIsProcessing(true);
-
     const readJson = (file) => new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = (e) => resolve(JSON.parse(e.target.result));
       reader.readAsText(file);
     });
 
-    const [followingData, followersData, pendingData] = await Promise.all([
-      readJson(files.following),
-      readJson(files.followers),
-      readJson(files.pending)
-    ]);
+    try {
+      const followingData = await readJson(files.following);
+      const followersData = await readJson(files.followers);
+      const pendingData = await readJson(files.pending);
 
-    const fList = processFile(followingData, 'following');
-    const flwList = processFile(followersData, 'followers');
-    const pendingList = processPending(pendingData);
+      const followingList = processFile(followingData, 'following');
+      const followersList = processFile(followersData, 'followers');
+      const pendingList = processPending(pendingData);
 
-    const fSet = new Set(fList);
-    const flwSet = new Set(flwList);
+      const followingSet = new Set(followingList);
+      const followersSet = new Set(followersList);
 
-    setResults({
-      notFollowingBack: fList.filter(u => !flwSet.has(u)),
-      fans: flwList.filter(u => !fSet.has(u)),
-      mutuals: fList.filter(u => flwSet.has(u)),
-      pending: pendingList
-    });
-    setIsProcessing(false);
+      setResults({
+        notFollowingBack: followingList.filter(u => !followersSet.has(u)),
+        fans: followersList.filter(u => !followingSet.has(u)),
+        mutuals: followingList.filter(u => followersSet.has(u)),
+        pending: pendingList
+      });
+      triggerToast('Analysis complete!');
+    } catch (e) { console.error(e); triggerToast('Error: Invalid JSON files.'); }
+    finally { setIsProcessing(false); }
   };
 
-  const getDaysAgo = (timestamp) => {
-    const diff = Math.floor((Date.now() / 1000 - timestamp) / 86400);
-    return diff < 0 ? 0 : diff;
-  };
-
-  const filteredData = results
-    ? (activeTab === 'pending'
-      ? results.pending.filter(u => u.username.includes(searchTerm.toLowerCase()))
-      : results[activeTab].filter(u => u.includes(searchTerm.toLowerCase())))
-    : [];
+  const chartData = results ? [
+    { name: 'Not Following Back', value: results.notFollowingBack.length, color: '#f43f5e' },
+    { name: 'Fans', value: results.fans.length, color: '#06b6d4' },
+    { name: 'Mutuals', value: results.mutuals.length, color: '#10b981' },
+  ] : [];
 
   return (
-    <div className="min-h-screen bg-[#090909] text-white font-sans">
-      <nav className="border-b border-white/10 px-8 py-4 flex justify-between items-center bg-[#090909]/50 backdrop-blur-md sticky top-0 z-10">
-        <h1 className="font-bold tracking-tight text-xl">Network<span className="text-indigo-500">Audit</span></h1>
-      </nav>
+    <div className="min-h-screen bg-[#0A0A0A] text-white p-6 md:p-12 font-sans">
+      <AnimatePresence>
+        {toast && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed top-5 right-5 bg-cyan-600 px-6 py-3 rounded-2xl z-50 flex items-center gap-2"><CheckCircle2 size={18} />{toast}</motion.div>}
+      </AnimatePresence>
 
-      <main className="max-w-4xl mx-auto p-8">
-        {!results ? (
-          <div className="mt-20 space-y-8">
-            <div className="text-center space-y-2">
-              <h2 className="text-3xl font-bold">Import your data</h2>
-              <p className="text-gray-500">Upload Following, Followers, and Pending Requests files.</p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {['following', 'followers', 'pending'].map(type => (
-                <label key={type} className="border-2 border-dashed border-white/10 rounded-xl p-6 bg-white/[0.02] hover:border-indigo-500/50 transition-all cursor-pointer">
-                  <input type="file" className="hidden" onChange={(e) => setFiles(prev => ({ ...prev, [type]: e.target.files[0] }))} />
-                  <p className="font-semibold text-white capitalize mb-1">{type}</p>
-                  <p className="text-xs text-gray-600 truncate">{files[type]?.name || 'Select file'}</p>
-                </label>
-              ))}
-            </div>
-            <button onClick={handleProcess} className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 rounded-lg font-medium transition-all">
-              {isProcessing ? 'Processing...' : 'Start Audit'}
-            </button>
-          </div>
-        ) : (
+      <div className="max-w-7xl mx-auto space-y-8">
+        <div className="text-center space-y-4">
+          <h1 className="text-5xl font-extrabold tracking-tighter bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">Network Intelligence</h1>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-4">
+          {['following', 'followers', 'pending'].map((type) => (
+            <label key={type} className="border-2 border-dashed border-white/10 rounded-3xl p-8 bg-white/5 hover:border-cyan-500 transition-all cursor-pointer text-center">
+              <input type="file" className="hidden" onChange={(e) => setFiles(prev => ({ ...prev, [type]: e.target.files[0] }))} />
+              <p className="font-bold capitalize">{type}.json</p>
+              <p className="text-xs text-gray-500 truncate">{files[type]?.name || 'Click to select'}</p>
+            </label>
+          ))}
+        </div>
+
+        <button onClick={handleProcess} className="w-full py-4 rounded-2xl bg-cyan-600 font-bold hover:bg-cyan-500 transition-all">Analyze Network</button>
+
+        {results && (
           <div className="space-y-8">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {['notFollowingBack', 'fans', 'mutuals', 'pending'].map(key => (
-                <button key={key} onClick={() => setActiveTab(key)} className={`p-4 rounded-2xl border transition-all ${activeTab === key ? 'bg-white/5 border-indigo-500/50' : 'bg-transparent border-white/5 hover:bg-white/[0.02]'}`}>
-                  <p className="text-2xl font-bold">{results[key].length}</p>
-                  <p className="text-[10px] uppercase tracking-widest text-gray-500">{key.replace(/([A-Z])/g, ' $1')}</p>
-                </button>
-              ))}
+            <div className="bg-white/5 p-6 rounded-3xl border border-white/10 h-64 flex items-center justify-center">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={chartData} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                    {chartData.map((entry, index) => <Cell key={index} fill={entry.color} />)}
+                  </Pie>
+                  <Tooltip contentStyle={{ backgroundColor: '#000', borderRadius: '12px' }} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
 
-            <div className="bg-white/[0.02] border border-white/10 rounded-2xl overflow-hidden">
-              <div className="p-4 border-b border-white/10 flex items-center gap-4">
-                <Search size={18} className="text-gray-500" />
-                <input placeholder="Filter users..." onChange={(e) => setSearchTerm(e.target.value)} className="bg-transparent w-full focus:outline-none text-sm" />
-              </div>
-              <div className="max-h-[500px] overflow-y-auto">
-                {filteredData.map((item, idx) => {
-                  const username = item.username || item;
-                  const daysAgo = item.timestamp ? getDaysAgo(item.timestamp) : null;
-                  return (
-                    <div key={idx} className="flex items-center justify-between p-4 border-b border-white/5 hover:bg-white/5 transition-colors">
-                      <span className="font-medium text-sm">@{username}</span>
-                      <div className="flex items-center gap-4">
-                        {daysAgo !== null && <span className="text-xs text-gray-500">{daysAgo} days ago</span>}
-                        <a href={userLinks[username] || `https://instagram.com/${username}`} target="_blank" className="text-indigo-400 hover:text-indigo-300 text-xs flex items-center gap-1">
-                          Profile <ExternalLink size={12} />
-                        </a>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+            <input type="text" placeholder="Search usernames..." onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 outline-none focus:border-cyan-500" />
+
+            <div className="grid md:grid-cols-4 gap-6">
+              <StandardCard title="Not Following Back" data={results.notFollowingBack.filter(u => u.includes(searchTerm))} links={userLinks} color="rose" />
+              <StandardCard title="Fans" data={results.fans.filter(u => u.includes(searchTerm))} links={userLinks} color="cyan" />
+              <StandardCard title="Mutuals" data={results.mutuals.filter(u => u.includes(searchTerm))} links={userLinks} color="emerald" />
+              <StandardCard title="Pending" data={results.pending.filter(p => p.username.includes(searchTerm.toLowerCase()))} links={userLinks} color="purple" isPending={true} />
             </div>
           </div>
         )}
-      </main>
+      </div>
+    </div>
+  );
+}
+
+function StandardCard({ title, data, links, color, isPending }) {
+  const styles = {
+    rose: "bg-rose-500/10 text-rose-400 border-rose-500/20",
+    cyan: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
+    emerald: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+    purple: "bg-purple-500/10 text-purple-400 border-purple-500/20"
+  };
+
+  return (
+    <div className={`border rounded-3xl p-6 h-[500px] flex flex-col ${styles[color]}`}>
+      <div className="mb-4 font-bold text-lg flex items-center gap-2"> {title} <span className="text-xs opacity-50">({data.length})</span></div>
+      <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-2">
+        {data.map((item, i) => {
+          const username = isPending ? item.username : item;
+          return (
+            <div key={i} className="flex justify-between items-center bg-white/5 p-3 rounded-xl hover:bg-white/10 transition-all">
+              <a href={links[username] || `https://instagram.com/${username}`} target="_blank" className="text-sm">@{username}</a>
+              {isPending ? (
+                <div className="text-[10px] opacity-70 flex items-center gap-1"><Clock size={10} /> {item.daysAgo}d</div>
+              ) : (
+                <button onClick={() => navigator.clipboard.writeText(username)}><Copy size={14} /></button>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
