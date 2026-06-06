@@ -16,10 +16,8 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [toast, setToast] = useState(null);
 
-  // UI State for the Navigation Bar
   const [activeTab, setActiveTab] = useState('core');
 
-  // Core Sorting State Configuration
   const [sortConfig, setSortConfig] = useState({
     notFollowingBack: { type: 'alpha', dir: 'asc' },
     fans: { type: 'alpha', dir: 'asc' },
@@ -37,17 +35,10 @@ export default function App() {
       let nextType = current.type;
       let nextDir = current.dir;
 
-      if (current.type === 'alpha' && current.dir === 'asc') {
-        nextDir = 'desc';
-      } else if (current.type === 'alpha' && current.dir === 'desc') {
-        nextType = 'time';
-        nextDir = 'asc';
-      } else if (current.type === 'time' && current.dir === 'asc') {
-        nextDir = 'desc';
-      } else {
-        nextType = 'alpha';
-        nextDir = 'asc';
-      }
+      if (current.type === 'alpha' && current.dir === 'asc') nextDir = 'desc';
+      else if (current.type === 'alpha' && current.dir === 'desc') { nextType = 'time'; nextDir = 'asc'; }
+      else if (current.type === 'time' && current.dir === 'asc') nextDir = 'desc';
+      else { nextType = 'alpha'; nextDir = 'asc'; }
 
       return { ...prev, [key]: { type: nextType, dir: nextDir } };
     });
@@ -55,13 +46,7 @@ export default function App() {
 
   const parseJsonFile = (data, type) => {
     const tempLinks = { ...userLinks };
-    let rawList = [];
-
-    if (type.includes('following')) {
-      rawList = data.relationships_following || [];
-    } else if (Array.isArray(data)) {
-      rawList = data;
-    }
+    let rawList = type.includes('following') ? (data.relationships_following || []) : (Array.isArray(data) ? data : []);
 
     const items = rawList.map((item, idx) => {
       const username = (item.title || item.string_list_data?.[0]?.value)?.toLowerCase();
@@ -102,9 +87,6 @@ export default function App() {
         outResults.notFollowingBack = processed.currFollowing.filter(u => !activeFollowersSet.has(u.username));
         outResults.fans = processed.currFollowers.filter(u => !activeFollowingSet.has(u.username));
         outResults.mutuals = processed.currFollowing.filter(u => activeFollowersSet.has(u.username));
-
-        // Auto-route user to Core tab if they uploaded core files
-        setActiveTab('core');
       }
 
       if (processed.oldFollowing || processed.oldFollowers) {
@@ -121,9 +103,6 @@ export default function App() {
 
         outResults.stillConnected = distinctOldItems.filter(u => currentActivePool.has(u.username));
         outResults.disconnected = distinctOldItems.filter(u => !currentActivePool.has(u.username));
-
-        // Auto-route to history if they ONLY uploaded history files
-        if (!processed.currFollowing && !processed.currFollowers) setActiveTab('history');
       }
 
       if (files.pending) {
@@ -133,13 +112,16 @@ export default function App() {
           const daysAgo = Math.floor((Date.now() / 1000 - item.timestamp) / 86400);
           return username ? { username, daysAgo, fileIndex: idx } : null;
         }).filter(Boolean);
-
-        // Auto-route to pending if they ONLY uploaded pending
-        if (!processed.currFollowing && !processed.currFollowers && !processed.oldFollowing && !processed.oldFollowers) setActiveTab('pending');
       }
 
       setResults(outResults);
-      triggerToast('Network matrix compiled successfully!');
+
+      // Smart Tab Routing based on what they just uploaded
+      if (files.currFollowing && files.currFollowers && !files.oldFollowing && !files.oldFollowers && !files.pending) setActiveTab('core');
+      else if ((files.oldFollowing || files.oldFollowers) && !files.currFollowing && !files.currFollowers && !files.pending) setActiveTab('history');
+      else if (files.pending && !files.currFollowing && !files.currFollowers && !files.oldFollowing && !files.oldFollowers) setActiveTab('pending');
+
+      triggerToast('Network matrix updated successfully!');
     } catch (err) {
       console.error(err);
       triggerToast('Error analyzing files. Verify file integrity.');
@@ -160,49 +142,49 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <div className="max-w-6xl mx-auto space-y-10">
+      <div className="max-w-6xl mx-auto space-y-8">
 
         {/* Header */}
-        <div className="text-center space-y-4">
+        <div className="text-center space-y-4 mb-4">
           <img src={AppLogo} alt="Network Audit Logo" className="mx-auto w-24 h-24" />
           <h1 className="text-4xl md:text-5xl font-extrabold tracking-tighter bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">
             Network Intelligence
           </h1>
         </div>
 
-        {/* Input Interface Matrix */}
-        {!hasActiveResults && (
-          <div className="bg-white/[0.02] p-8 rounded-3xl border border-white/10 space-y-6">
+        {/* ALWAYS VISIBLE: Input Interface Matrix */}
+        <div className="bg-white/[0.02] p-6 rounded-3xl border border-white/10 space-y-5">
+          <div className="flex justify-between items-center">
             <h2 className="text-sm font-semibold text-gray-400 tracking-wider uppercase flex items-center gap-2">
               <ArrowRightLeft size={16} /> Data File Ingestion
             </h2>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              {[
-                { id: 'currFollowing', name: 'New Following' },
-                { id: 'currFollowers', name: 'New Followers' },
-                { id: 'oldFollowing', name: 'Old Following' },
-                { id: 'oldFollowers', name: 'Old Followers' },
-                { id: 'pending', name: 'Pending Requests' },
-              ].map((fileConfig) => (
-                <label key={fileConfig.id} className={`group relative border border-dashed rounded-2xl p-4 transition-all duration-300 cursor-pointer text-center flex flex-col justify-center items-center h-32 ${files[fileConfig.id] ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400' : 'bg-white/[0.02] border-white/10 hover:border-cyan-500/50 hover:bg-white/[0.04]'}`}>
-                  <input type="file" className="hidden" onChange={(e) => setFiles(p => ({ ...p, [fileConfig.id]: e.target.files[0] }))} />
-                  {files[fileConfig.id] ? <Check size={24} className="mb-2 text-emerald-400" /> : <Upload size={24} className="mb-2 text-gray-500 group-hover:text-cyan-400 transition-colors" />}
-                  <span className="font-bold text-xs tracking-tight block text-white group-hover:text-cyan-300 transition-colors">{fileConfig.name}</span>
-                  <span className="text-[10px] text-gray-500 truncate w-full mt-1 px-2 block">{files[fileConfig.id]?.name || 'Upload JSON'}</span>
-                </label>
-              ))}
-            </div>
-            <button onClick={handleProcess} disabled={isProcessing} className="w-full py-4 rounded-2xl bg-gradient-to-r from-cyan-600 to-emerald-600 font-bold text-lg hover:from-cyan-500 hover:to-emerald-500 shadow-lg shadow-cyan-950/20 transition-all active:scale-[0.99] disabled:opacity-50">
-              {isProcessing ? 'Compiling Datasets...' : 'Analyze Selection'}
-            </button>
+            {hasActiveResults && <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-full font-bold tracking-widest uppercase border border-emerald-500/20">Matrix Active</span>}
           </div>
-        )}
+
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {[
+              { id: 'currFollowing', name: 'New Following' },
+              { id: 'currFollowers', name: 'New Followers' },
+              { id: 'oldFollowing', name: 'Old Following' },
+              { id: 'oldFollowers', name: 'Old Followers' },
+              { id: 'pending', name: 'Pending Requests' },
+            ].map((fileConfig) => (
+              <label key={fileConfig.id} className={`group relative border border-dashed rounded-2xl p-3 transition-all duration-300 cursor-pointer text-center flex flex-col justify-center items-center h-24 ${files[fileConfig.id] ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400' : 'bg-white/[0.02] border-white/10 hover:border-cyan-500/50 hover:bg-white/[0.04]'}`}>
+                <input type="file" className="hidden" onChange={(e) => setFiles(p => ({ ...p, [fileConfig.id]: e.target.files[0] }))} />
+                {files[fileConfig.id] ? <Check size={20} className="mb-1 text-emerald-400" /> : <Upload size={20} className="mb-1 text-gray-500 group-hover:text-cyan-400 transition-colors" />}
+                <span className="font-bold text-xs tracking-tight block text-white group-hover:text-cyan-300 transition-colors">{fileConfig.name}</span>
+                <span className="text-[10px] text-gray-500 truncate w-full mt-1 px-1 block">{files[fileConfig.id]?.name || 'Upload JSON'}</span>
+              </label>
+            ))}
+          </div>
+          <button onClick={handleProcess} disabled={isProcessing} className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-cyan-600 to-emerald-600 font-bold hover:from-cyan-500 hover:to-emerald-500 shadow-lg shadow-cyan-950/20 transition-all active:scale-[0.99] disabled:opacity-50">
+            {isProcessing ? 'Compiling...' : (hasActiveResults ? 'Update Analysis' : 'Analyze Selection')}
+          </button>
+        </div>
 
         {/* Workspace Navigation & Results */}
         {hasActiveResults && (
           <div className="space-y-6">
-
-            {/* The Navigation Bar */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/5 p-2 rounded-2xl border border-white/10 sticky top-4 z-40 backdrop-blur-xl">
               <div className="flex p-1 bg-black/40 rounded-xl">
                 <NavTab id="core" icon={<Users size={16} />} label="Core Network" active={activeTab} set={setActiveTab} />
@@ -216,45 +198,26 @@ export default function App() {
               </div>
             </div>
 
-            {/* Tab: Core Network */}
             {activeTab === 'core' && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {results.notFollowingBack ? (
-                  <StandardCard title="Not Following Back" data={results.notFollowingBack.filter(u => u.username.includes(searchTerm))} sort={sortConfig.notFollowingBack} onSort={() => cycleSort('notFollowingBack')} color="rose" links={userLinks} />
-                ) : <EmptyState message="Upload Current Following & Followers to see this data." />}
-
-                {results.fans ? (
-                  <StandardCard title="Fans" data={results.fans.filter(u => u.username.includes(searchTerm))} sort={sortConfig.fans} onSort={() => cycleSort('fans')} color="cyan" links={userLinks} />
-                ) : <EmptyState message="Upload Current Following & Followers to see this data." />}
-
-                {results.mutuals ? (
-                  <StandardCard title="Mutuals" data={results.mutuals.filter(u => u.username.includes(searchTerm))} sort={sortConfig.mutuals} onSort={() => cycleSort('mutuals')} color="emerald" links={userLinks} />
-                ) : <EmptyState message="Upload Current Following & Followers to see this data." />}
+                {results.notFollowingBack ? <StandardCard title="Not Following Back" data={results.notFollowingBack.filter(u => u.username.includes(searchTerm))} sort={sortConfig.notFollowingBack} onSort={() => cycleSort('notFollowingBack')} color="rose" links={userLinks} /> : <EmptyState message="Upload Current Following & Followers to see this data." />}
+                {results.fans ? <StandardCard title="Fans" data={results.fans.filter(u => u.username.includes(searchTerm))} sort={sortConfig.fans} onSort={() => cycleSort('fans')} color="cyan" links={userLinks} /> : <EmptyState message="Upload Current Following & Followers to see this data." />}
+                {results.mutuals ? <StandardCard title="Mutuals" data={results.mutuals.filter(u => u.username.includes(searchTerm))} sort={sortConfig.mutuals} onSort={() => cycleSort('mutuals')} color="emerald" links={userLinks} /> : <EmptyState message="Upload Current Following & Followers to see this data." />}
               </motion.div>
             )}
 
-            {/* Tab: History / Drift */}
             {activeTab === 'history' && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-                {results.stillConnected ? (
-                  <StandardCard title="Still Connected" data={results.stillConnected.filter(u => u.username.includes(searchTerm))} sort={sortConfig.stillConnected} onSort={() => cycleSort('stillConnected')} color="teal" links={userLinks} />
-                ) : <EmptyState message="Upload Old & Current files to track network stability." />}
-
-                {results.disconnected ? (
-                  <StandardCard title="Disconnected" data={results.disconnected.filter(u => u.username.includes(searchTerm))} sort={sortConfig.disconnected} onSort={() => cycleSort('disconnected')} color="orange" links={userLinks} />
-                ) : <EmptyState message="Upload Old & Current files to track account drift." />}
+                {results.stillConnected ? <StandardCard title="Still Connected" data={results.stillConnected.filter(u => u.username.includes(searchTerm))} sort={sortConfig.stillConnected} onSort={() => cycleSort('stillConnected')} color="teal" links={userLinks} /> : <EmptyState message="Upload Old & Current files to track network stability." />}
+                {results.disconnected ? <StandardCard title="Disconnected" data={results.disconnected.filter(u => u.username.includes(searchTerm))} sort={sortConfig.disconnected} onSort={() => cycleSort('disconnected')} color="orange" links={userLinks} /> : <EmptyState message="Upload Old & Current files to track account drift." />}
               </motion.div>
             )}
 
-            {/* Tab: Pending Requests */}
             {activeTab === 'pending' && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl mx-auto">
-                {results.pending ? (
-                  <StandardCard title="Pending Requests" data={results.pending.filter(u => u.username.includes(searchTerm))} sort={sortConfig.pending} onSort={() => cycleSort('pending')} color="purple" links={userLinks} isPending={true} />
-                ) : <EmptyState message="Upload your Pending Requests JSON to view outbound history." />}
+                {results.pending ? <StandardCard title="Pending Requests" data={results.pending.filter(u => u.username.includes(searchTerm))} sort={sortConfig.pending} onSort={() => cycleSort('pending')} color="purple" links={userLinks} isPending={true} /> : <EmptyState message="Upload your Pending Requests JSON to view outbound history." />}
               </motion.div>
             )}
-
           </div>
         )}
       </div>
@@ -262,7 +225,6 @@ export default function App() {
   );
 }
 
-// Sub-component for Nav Tabs
 function NavTab({ id, icon, label, active, set }) {
   const isActive = active === id;
   return (
@@ -272,7 +234,6 @@ function NavTab({ id, icon, label, active, set }) {
   );
 }
 
-// Sub-component for missing data in tabs
 function EmptyState({ message }) {
   return (
     <div className="border border-dashed border-white/10 rounded-3xl p-6 h-[480px] flex flex-col items-center justify-center text-center bg-white/[0.01]">
@@ -292,19 +253,13 @@ function StandardCard({ title, data, sort, onSort, color, links, isPending }) {
     purple: "bg-purple-500/5 text-purple-400 border-purple-500/20 hover:border-purple-500/40"
   };
 
-  const getSortBadgeLabel = () => {
-    if (sort.type === 'alpha') return sort.dir === 'asc' ? 'A-Z' : 'Z-A';
-    return sort.dir === 'asc' ? 'Oldest' : 'Newest';
-  };
+  const getSortBadgeLabel = () => sort.type === 'alpha' ? (sort.dir === 'asc' ? 'A-Z' : 'Z-A') : (sort.dir === 'asc' ? 'Oldest' : 'Newest');
 
   const sortedItems = [...data].sort((a, b) => {
-    if (sort.type === 'alpha') {
-      return sort.dir === 'asc' ? a.username.localeCompare(b.username) : b.username.localeCompare(a.username);
-    } else {
-      const stepA = a.daysAgo !== undefined ? a.daysAgo : a.fileIndex;
-      const stepB = b.daysAgo !== undefined ? b.daysAgo : b.fileIndex;
-      return sort.dir === 'asc' ? stepB - stepA : stepA - stepB;
-    }
+    if (sort.type === 'alpha') return sort.dir === 'asc' ? a.username.localeCompare(b.username) : b.username.localeCompare(a.username);
+    const stepA = a.daysAgo !== undefined ? a.daysAgo : a.fileIndex;
+    const stepB = b.daysAgo !== undefined ? b.daysAgo : b.fileIndex;
+    return sort.dir === 'asc' ? stepB - stepA : stepA - stepB;
   });
 
   return (
@@ -314,10 +269,8 @@ function StandardCard({ title, data, sort, onSort, color, links, isPending }) {
           <span className="font-bold text-lg text-white tracking-tight">{title}</span>
           <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-white/10 opacity-70 text-white">{data.length}</span>
         </div>
-
         <button onClick={onSort} className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 px-2.5 py-1 rounded-xl transition-all text-[11px] font-bold tracking-wider uppercase text-white shadow-inner active:scale-95">
-          <span>{getSortBadgeLabel()}</span>
-          <ArrowUpDown size={11} className="opacity-60" />
+          <span>{getSortBadgeLabel()}</span><ArrowUpDown size={11} className="opacity-60" />
         </button>
       </div>
 
@@ -327,7 +280,6 @@ function StandardCard({ title, data, sort, onSort, color, links, isPending }) {
             <a href={links[item.username] || `https://instagram.com/${item.username}`} target="_blank" rel="noopener noreferrer" className="text-sm font-medium tracking-tight text-gray-300 hover:text-white transition-colors truncate max-w-[75%]">
               @{item.username}
             </a>
-
             {isPending ? (
               <div className={`text-[11px] font-medium flex items-center gap-1 px-2 py-0.5 rounded-md ${item.daysAgo > 180 ? 'bg-rose-500/20 text-rose-400' : 'bg-white/5 text-gray-400'}`}>
                 <Clock size={11} /> {item.daysAgo}d
@@ -339,11 +291,7 @@ function StandardCard({ title, data, sort, onSort, color, links, isPending }) {
             )}
           </div>
         ))}
-        {data.length === 0 && (
-          <div className="h-full flex flex-col items-center justify-center text-center p-6 opacity-30">
-            <span className="text-xs font-medium">No accounts in segment</span>
-          </div>
-        )}
+        {data.length === 0 && <div className="h-full flex flex-col items-center justify-center text-center p-6 opacity-30"><span className="text-xs font-medium">No accounts in segment</span></div>}
       </div>
     </div>
   );
