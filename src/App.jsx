@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, Search, Check, Copy, Clock, ArrowUpDown, ArrowRightLeft, Users, History, Send } from 'lucide-react';
+import {
+  Upload, Search, Check, Copy, Clock, ArrowUpDown, ArrowRightLeft,
+  Users, History, Send, UserMinus, Star, UserCheck, Link as LinkIcon, Unlink, FileJson
+} from 'lucide-react';
 import AppLogo from './assets/logo.png';
 
 export default function App() {
@@ -116,7 +119,6 @@ export default function App() {
 
       setResults(outResults);
 
-      // Smart Tab Routing based on what they just uploaded
       if (files.currFollowing && files.currFollowers && !files.oldFollowing && !files.oldFollowers && !files.pending) setActiveTab('core');
       else if ((files.oldFollowing || files.oldFollowers) && !files.currFollowing && !files.currFollowers && !files.pending) setActiveTab('history');
       else if (files.pending && !files.currFollowing && !files.currFollowers && !files.oldFollowing && !files.oldFollowers) setActiveTab('pending');
@@ -133,7 +135,7 @@ export default function App() {
   const hasActiveResults = results && Object.keys(results).length > 0;
 
   return (
-    <div className="min-h-screen bg-[#0A0A0A] text-white p-6 md:p-12 font-sans selection:bg-cyan-500/30">
+    <div className="min-h-screen bg-[#050505] text-white p-6 md:p-12 font-sans selection:bg-cyan-500/30 pb-24">
       <AnimatePresence>
         {toast && (
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="fixed top-5 right-5 bg-gradient-to-r from-cyan-600 to-emerald-600 px-6 py-3 rounded-2xl z-50 flex items-center gap-2 shadow-xl shadow-black/40 border border-white/10 font-medium">
@@ -144,21 +146,20 @@ export default function App() {
 
       <div className="max-w-6xl mx-auto space-y-8">
 
-        {/* Header */}
         <div className="text-center space-y-4 mb-4">
-          <img src={AppLogo} alt="Network Audit Logo" className="mx-auto w-24 h-24" />
+          <img src={AppLogo} alt="Network Audit Logo" className="mx-auto w-24 h-24 drop-shadow-2xl" />
           <h1 className="text-4xl md:text-5xl font-extrabold tracking-tighter bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">
             Network Intelligence
           </h1>
         </div>
 
         {/* ALWAYS VISIBLE: Input Interface Matrix */}
-        <div className="bg-white/[0.02] p-6 rounded-3xl border border-white/10 space-y-5">
-          <div className="flex justify-between items-center">
-            <h2 className="text-sm font-semibold text-gray-400 tracking-wider uppercase flex items-center gap-2">
-              <ArrowRightLeft size={16} /> Data File Ingestion
+        <div className="bg-white/[0.02] p-6 rounded-3xl border border-white/5 shadow-2xl shadow-black/50 space-y-5 backdrop-blur-xl">
+          <div className="flex justify-between items-center px-2">
+            <h2 className="text-sm font-bold text-gray-400 tracking-widest uppercase flex items-center gap-2">
+              <FileJson size={16} className="text-emerald-500" /> Data Ingestion
             </h2>
-            {hasActiveResults && <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-full font-bold tracking-widest uppercase border border-emerald-500/20">Matrix Active</span>}
+            {hasActiveResults && <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full font-bold tracking-widest uppercase border border-emerald-500/20 flex items-center gap-1.5"><Check size={10} /> Matrix Active</span>}
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -172,50 +173,50 @@ export default function App() {
               <label key={fileConfig.id} className={`group relative border border-dashed rounded-2xl p-3 transition-all duration-300 cursor-pointer text-center flex flex-col justify-center items-center h-24 ${files[fileConfig.id] ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400' : 'bg-white/[0.02] border-white/10 hover:border-cyan-500/50 hover:bg-white/[0.04]'}`}>
                 <input type="file" className="hidden" onChange={(e) => setFiles(p => ({ ...p, [fileConfig.id]: e.target.files[0] }))} />
                 {files[fileConfig.id] ? <Check size={20} className="mb-1 text-emerald-400" /> : <Upload size={20} className="mb-1 text-gray-500 group-hover:text-cyan-400 transition-colors" />}
-                <span className="font-bold text-xs tracking-tight block text-white group-hover:text-cyan-300 transition-colors">{fileConfig.name}</span>
-                <span className="text-[10px] text-gray-500 truncate w-full mt-1 px-1 block">{files[fileConfig.id]?.name || 'Upload JSON'}</span>
+                <span className="font-bold text-[11px] uppercase tracking-wider block text-gray-300 group-hover:text-cyan-300 transition-colors">{fileConfig.name}</span>
+                <span className="text-[10px] text-gray-600 truncate w-full mt-1 px-1 block font-medium">{files[fileConfig.id]?.name || 'Upload JSON'}</span>
               </label>
             ))}
           </div>
-          <button onClick={handleProcess} disabled={isProcessing} className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-cyan-600 to-emerald-600 font-bold hover:from-cyan-500 hover:to-emerald-500 shadow-lg shadow-cyan-950/20 transition-all active:scale-[0.99] disabled:opacity-50">
-            {isProcessing ? 'Compiling...' : (hasActiveResults ? 'Update Analysis' : 'Analyze Selection')}
+          <button onClick={handleProcess} disabled={isProcessing} className="w-full py-4 rounded-2xl bg-gradient-to-r from-cyan-600 to-emerald-600 font-bold hover:from-cyan-500 hover:to-emerald-500 shadow-lg shadow-cyan-900/20 transition-all active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2">
+            {isProcessing ? 'Compiling...' : (hasActiveResults ? <><ArrowRightLeft size={18} /> Update Analysis</> : 'Analyze Selection')}
           </button>
         </div>
 
         {/* Workspace Navigation & Results */}
         {hasActiveResults && (
           <div className="space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/5 p-2 rounded-2xl border border-white/10 sticky top-4 z-40 backdrop-blur-xl">
-              <div className="flex p-1 bg-black/40 rounded-xl">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/[0.02] p-2 rounded-2xl border border-white/5 sticky top-4 z-40 backdrop-blur-2xl shadow-xl shadow-black/40">
+              <div className="flex p-1 bg-black/40 rounded-xl overflow-x-auto custom-scrollbar">
                 <NavTab id="core" icon={<Users size={16} />} label="Core Network" active={activeTab} set={setActiveTab} />
                 <NavTab id="history" icon={<History size={16} />} label="Time Machine" active={activeTab} set={setActiveTab} />
                 <NavTab id="pending" icon={<Send size={16} />} label="Outbound" active={activeTab} set={setActiveTab} />
               </div>
 
-              <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                <input type="text" placeholder="Filter current view..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value.toLowerCase())} className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 outline-none focus:border-cyan-500 text-sm transition-colors placeholder:text-gray-600" />
+              <div className="relative flex-1 max-w-sm shrink-0">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                <input type="text" placeholder="Filter current view..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value.toLowerCase())} className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 outline-none focus:border-cyan-500 text-sm transition-colors placeholder:text-gray-600 focus:bg-white/10" />
               </div>
             </div>
 
             {activeTab === 'core' && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {results.notFollowingBack ? <StandardCard title="Not Following Back" data={results.notFollowingBack.filter(u => u.username.includes(searchTerm))} sort={sortConfig.notFollowingBack} onSort={() => cycleSort('notFollowingBack')} color="rose" links={userLinks} /> : <EmptyState message="Upload Current Following & Followers to see this data." />}
-                {results.fans ? <StandardCard title="Fans" data={results.fans.filter(u => u.username.includes(searchTerm))} sort={sortConfig.fans} onSort={() => cycleSort('fans')} color="cyan" links={userLinks} /> : <EmptyState message="Upload Current Following & Followers to see this data." />}
-                {results.mutuals ? <StandardCard title="Mutuals" data={results.mutuals.filter(u => u.username.includes(searchTerm))} sort={sortConfig.mutuals} onSort={() => cycleSort('mutuals')} color="emerald" links={userLinks} /> : <EmptyState message="Upload Current Following & Followers to see this data." />}
+                {results.notFollowingBack ? <StandardCard title="Not Following Back" icon={UserMinus} data={results.notFollowingBack.filter(u => u.username.includes(searchTerm))} sort={sortConfig.notFollowingBack} onSort={() => cycleSort('notFollowingBack')} color="rose" links={userLinks} /> : <EmptyState icon={UserMinus} title="No Core Data" message="Upload Current Following & Followers to view this metric." color="rose" />}
+                {results.fans ? <StandardCard title="Fans" icon={Star} data={results.fans.filter(u => u.username.includes(searchTerm))} sort={sortConfig.fans} onSort={() => cycleSort('fans')} color="cyan" links={userLinks} /> : <EmptyState icon={Star} title="No Core Data" message="Upload Current Following & Followers to view this metric." color="cyan" />}
+                {results.mutuals ? <StandardCard title="Mutuals" icon={UserCheck} data={results.mutuals.filter(u => u.username.includes(searchTerm))} sort={sortConfig.mutuals} onSort={() => cycleSort('mutuals')} color="emerald" links={userLinks} /> : <EmptyState icon={UserCheck} title="No Core Data" message="Upload Current Following & Followers to view this metric." color="emerald" />}
               </motion.div>
             )}
 
             {activeTab === 'history' && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-                {results.stillConnected ? <StandardCard title="Still Connected" data={results.stillConnected.filter(u => u.username.includes(searchTerm))} sort={sortConfig.stillConnected} onSort={() => cycleSort('stillConnected')} color="teal" links={userLinks} /> : <EmptyState message="Upload Old & Current files to track network stability." />}
-                {results.disconnected ? <StandardCard title="Disconnected" data={results.disconnected.filter(u => u.username.includes(searchTerm))} sort={sortConfig.disconnected} onSort={() => cycleSort('disconnected')} color="orange" links={userLinks} /> : <EmptyState message="Upload Old & Current files to track account drift." />}
+                {results.stillConnected ? <StandardCard title="Still Connected" icon={LinkIcon} data={results.stillConnected.filter(u => u.username.includes(searchTerm))} sort={sortConfig.stillConnected} onSort={() => cycleSort('stillConnected')} color="teal" links={userLinks} /> : <EmptyState icon={LinkIcon} title="No Historical Data" message="Upload Old & Current files to track network stability." color="teal" />}
+                {results.disconnected ? <StandardCard title="Disconnected" icon={Unlink} data={results.disconnected.filter(u => u.username.includes(searchTerm))} sort={sortConfig.disconnected} onSort={() => cycleSort('disconnected')} color="orange" links={userLinks} /> : <EmptyState icon={Unlink} title="No Historical Data" message="Upload Old & Current files to track account drift." color="orange" />}
               </motion.div>
             )}
 
             {activeTab === 'pending' && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl mx-auto">
-                {results.pending ? <StandardCard title="Pending Requests" data={results.pending.filter(u => u.username.includes(searchTerm))} sort={sortConfig.pending} onSort={() => cycleSort('pending')} color="purple" links={userLinks} isPending={true} /> : <EmptyState message="Upload your Pending Requests JSON to view outbound history." />}
+                {results.pending ? <StandardCard title="Pending Requests" icon={Send} data={results.pending.filter(u => u.username.includes(searchTerm))} sort={sortConfig.pending} onSort={() => cycleSort('pending')} color="purple" links={userLinks} isPending={true} /> : <EmptyState icon={Send} title="No Outbound Data" message="Upload your Pending Requests JSON to view history." color="purple" />}
               </motion.div>
             )}
           </div>
@@ -228,29 +229,41 @@ export default function App() {
 function NavTab({ id, icon, label, active, set }) {
   const isActive = active === id;
   return (
-    <button onClick={() => set(id)} className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${isActive ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}>
-      {icon} <span className="hidden sm:inline">{label}</span>
+    <button onClick={() => set(id)} className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${isActive ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}>
+      {icon} <span>{label}</span>
     </button>
   );
 }
 
-function EmptyState({ message }) {
+function EmptyState({ icon: Icon, title, message, color }) {
+  const colorMap = {
+    rose: "bg-rose-500/5 text-rose-500 border-rose-500/10",
+    cyan: "bg-cyan-500/5 text-cyan-500 border-cyan-500/10",
+    emerald: "bg-emerald-500/5 text-emerald-500 border-emerald-500/10",
+    teal: "bg-teal-500/5 text-teal-500 border-teal-500/10",
+    orange: "bg-orange-500/5 text-orange-500 border-orange-500/10",
+    purple: "bg-purple-500/5 text-purple-500 border-purple-500/10"
+  };
+
   return (
-    <div className="border border-dashed border-white/10 rounded-3xl p-6 h-[480px] flex flex-col items-center justify-center text-center bg-white/[0.01]">
-      <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-4 text-gray-600"><Users size={20} /></div>
-      <p className="text-gray-500 text-sm max-w-[200px]">{message}</p>
+    <div className={`border rounded-3xl p-6 h-[500px] flex flex-col items-center justify-center text-center ${colorMap[color]}`}>
+      <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${colorMap[color].split(' ')[0]} border ${colorMap[color].split(' ')[2]}`}>
+        <Icon size={28} className="opacity-80" />
+      </div>
+      <h3 className="font-bold text-lg mb-2 text-white">{title}</h3>
+      <p className="text-sm opacity-70 max-w-[200px]">{message}</p>
     </div>
   );
 }
 
-function StandardCard({ title, data, sort, onSort, color, links, isPending }) {
+function StandardCard({ title, icon: Icon, data, sort, onSort, color, links, isPending }) {
   const styles = {
-    rose: "bg-rose-500/5 text-rose-400 border-rose-500/20 hover:border-rose-500/40",
-    cyan: "bg-cyan-500/5 text-cyan-400 border-cyan-500/20 hover:border-cyan-500/40",
-    emerald: "bg-emerald-500/5 text-emerald-400 border-emerald-500/20 hover:border-emerald-500/40",
-    teal: "bg-teal-500/5 text-teal-400 border-teal-500/20 hover:border-teal-500/40",
-    orange: "bg-orange-500/5 text-orange-400 border-orange-500/20 hover:border-orange-500/40",
-    purple: "bg-purple-500/5 text-purple-400 border-purple-500/20 hover:border-purple-500/40"
+    rose: "bg-rose-500/[0.03] text-rose-400 border-rose-500/20 hover:border-rose-500/40 hover:shadow-rose-900/10",
+    cyan: "bg-cyan-500/[0.03] text-cyan-400 border-cyan-500/20 hover:border-cyan-500/40 hover:shadow-cyan-900/10",
+    emerald: "bg-emerald-500/[0.03] text-emerald-400 border-emerald-500/20 hover:border-emerald-500/40 hover:shadow-emerald-900/10",
+    teal: "bg-teal-500/[0.03] text-teal-400 border-teal-500/20 hover:border-teal-500/40 hover:shadow-teal-900/10",
+    orange: "bg-orange-500/[0.03] text-orange-400 border-orange-500/20 hover:border-orange-500/40 hover:shadow-orange-900/10",
+    purple: "bg-purple-500/[0.03] text-purple-400 border-purple-500/20 hover:border-purple-500/40 hover:shadow-purple-900/10"
   };
 
   const getSortBadgeLabel = () => sort.type === 'alpha' ? (sort.dir === 'asc' ? 'A-Z' : 'Z-A') : (sort.dir === 'asc' ? 'Oldest' : 'Newest');
@@ -263,35 +276,40 @@ function StandardCard({ title, data, sort, onSort, color, links, isPending }) {
   });
 
   return (
-    <div className={`border rounded-3xl p-5 h-[500px] flex flex-col transition-all duration-300 shadow-md ${styles[color]}`}>
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="font-bold text-lg text-white tracking-tight">{title}</span>
-          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-white/10 opacity-70 text-white">{data.length}</span>
+    <div className={`border rounded-3xl p-5 h-[500px] flex flex-col transition-all duration-500 shadow-xl hover:-translate-y-1 ${styles[color]}`}>
+      <div className="mb-5 flex items-center justify-between pb-4 border-b border-white/5">
+        <div className="flex items-center gap-3">
+          <div className={`p-2 rounded-xl bg-white/5 shadow-inner`}>
+            <Icon size={18} />
+          </div>
+          <div>
+            <span className="font-bold text-lg text-white tracking-tight block leading-none">{title}</span>
+            <span className="text-[11px] font-semibold text-gray-500 tracking-wider uppercase mt-1 block">{data.length} Accounts</span>
+          </div>
         </div>
-        <button onClick={onSort} className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 px-2.5 py-1 rounded-xl transition-all text-[11px] font-bold tracking-wider uppercase text-white shadow-inner active:scale-95">
-          <span>{getSortBadgeLabel()}</span><ArrowUpDown size={11} className="opacity-60" />
+        <button onClick={onSort} className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-xl transition-all text-[10px] font-bold tracking-wider uppercase text-white shadow-inner active:scale-95">
+          <span>{getSortBadgeLabel()}</span><ArrowUpDown size={12} className="opacity-60" />
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto pr-1 space-y-1.5 scrollbar-thin scrollbar-thumb-white/10">
+      <div className="flex-1 overflow-y-auto pr-2 space-y-1.5 custom-scrollbar">
         {sortedItems.map((item) => (
-          <div key={item.username} className="flex justify-between items-center bg-white/[0.03] hover:bg-white/[0.07] p-3 rounded-xl transition-all duration-200 group border border-white/[0.02]">
-            <a href={links[item.username] || `https://instagram.com/${item.username}`} target="_blank" rel="noopener noreferrer" className="text-sm font-medium tracking-tight text-gray-300 hover:text-white transition-colors truncate max-w-[75%]">
+          <div key={item.username} className="flex justify-between items-center bg-black/20 hover:bg-white/[0.08] p-3.5 rounded-xl transition-all duration-200 group border border-white/[0.02]">
+            <a href={links[item.username] || `https://instagram.com/${item.username}`} target="_blank" rel="noopener noreferrer" className="text-sm font-medium tracking-tight text-gray-300 group-hover:text-white transition-colors truncate max-w-[70%]">
               @{item.username}
             </a>
             {isPending ? (
-              <div className={`text-[11px] font-medium flex items-center gap-1 px-2 py-0.5 rounded-md ${item.daysAgo > 180 ? 'bg-rose-500/20 text-rose-400' : 'bg-white/5 text-gray-400'}`}>
-                <Clock size={11} /> {item.daysAgo}d
+              <div className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${item.daysAgo > 180 ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-white/5 text-gray-400 border-white/10'}`}>
+                <Clock size={10} /> {item.daysAgo}d
               </div>
             ) : (
-              <button onClick={() => navigator.clipboard.writeText(item.username)} className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-all">
+              <button onClick={() => navigator.clipboard.writeText(item.username)} className="opacity-0 group-hover:opacity-100 p-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-gray-300 hover:text-white transition-all shadow-sm">
                 <Copy size={13} />
               </button>
             )}
           </div>
         ))}
-        {data.length === 0 && <div className="h-full flex flex-col items-center justify-center text-center p-6 opacity-30"><span className="text-xs font-medium">No accounts in segment</span></div>}
+        {data.length === 0 && <div className="h-full flex flex-col items-center justify-center text-center p-6 opacity-30"><span className="text-sm font-medium text-white">List is empty</span></div>}
       </div>
     </div>
   );
