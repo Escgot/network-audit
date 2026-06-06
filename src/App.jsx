@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, Search, Check, Copy, Clock, ArrowUpDown, ArrowRightLeft } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { Upload, Search, Check, Copy, Clock, ArrowUpDown, ArrowRightLeft, Users, History, Send } from 'lucide-react';
 import AppLogo from './assets/logo.png';
 
 export default function App() {
@@ -17,7 +16,10 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [toast, setToast] = useState(null);
 
-  // Core Sorting State Configuration for every possible output column
+  // UI State for the Navigation Bar
+  const [activeTab, setActiveTab] = useState('core');
+
+  // Core Sorting State Configuration
   const [sortConfig, setSortConfig] = useState({
     notFollowingBack: { type: 'alpha', dir: 'asc' },
     fans: { type: 'alpha', dir: 'asc' },
@@ -29,7 +31,6 @@ export default function App() {
 
   const triggerToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
-  // Rotates sequentially through: A-Z -> Z-A -> Oldest -> Newest
   const cycleSort = (key) => {
     setSortConfig(prev => {
       const current = prev[key];
@@ -52,22 +53,6 @@ export default function App() {
     });
   };
 
-  // Uniform sorting execution for text arrays, implicit structures, and real timestamps
-  const getSortedData = (data, key) => {
-    const { type, dir } = sortConfig[key];
-    return [...data].sort((a, b) => {
-      if (type === 'alpha') {
-        return dir === 'asc' ? a.username.localeCompare(b.username) : b.username.localeCompare(a.username);
-      } else {
-        // High indices/days indicate older relationships in data streams
-        const ageA = a.daysAgo !== undefined ? a.daysAgo : a.fileIndex;
-        const ageB = b.daysAgo !== undefined ? b.daysAgo : b.fileIndex;
-        return dir === 'asc' ? ageB - ageA : ageA - ageB;
-      }
-    });
-  };
-
-  // Normalizer: Standardizes data profiles across structural variations while mapping outbound hyper-references
   const parseJsonFile = (data, type) => {
     const tempLinks = { ...userLinks };
     let rawList = [];
@@ -105,13 +90,11 @@ export default function App() {
       const processed = {};
       const outResults = {};
 
-      // Parse whatever files the user actually provided
       if (files.currFollowing) processed.currFollowing = parseJsonFile(await loadJson(files.currFollowing), 'following');
       if (files.currFollowers) processed.currFollowers = parseJsonFile(await loadJson(files.currFollowers), 'followers');
       if (files.oldFollowing) processed.oldFollowing = parseJsonFile(await loadJson(files.oldFollowing), 'following');
       if (files.oldFollowers) processed.oldFollowers = parseJsonFile(await loadJson(files.oldFollowers), 'followers');
 
-      // Execution Modules 1: Active Relations Analysis (Requires both current files)
       if (processed.currFollowing && processed.currFollowers) {
         const activeFollowersSet = new Set(processed.currFollowers.map(u => u.username));
         const activeFollowingSet = new Set(processed.currFollowing.map(u => u.username));
@@ -119,16 +102,17 @@ export default function App() {
         outResults.notFollowingBack = processed.currFollowing.filter(u => !activeFollowersSet.has(u.username));
         outResults.fans = processed.currFollowers.filter(u => !activeFollowingSet.has(u.username));
         outResults.mutuals = processed.currFollowing.filter(u => activeFollowersSet.has(u.username));
+
+        // Auto-route user to Core tab if they uploaded core files
+        setActiveTab('core');
       }
 
-      // Execution Modules 2: Historical Continuity Audits (Compares old profiles with current state)
       if (processed.oldFollowing || processed.oldFollowers) {
         const currentActivePool = new Set([
           ...(processed.currFollowing?.map(u => u.username) || []),
           ...(processed.currFollowers?.map(u => u.username) || [])
         ]);
 
-        // Merge target profiles from old files
         const combinedOldMap = new Map();
         [...(processed.oldFollowing || []), ...(processed.oldFollowers || [])].forEach(item => {
           if (!combinedOldMap.has(item.username)) combinedOldMap.set(item.username, item);
@@ -137,9 +121,11 @@ export default function App() {
 
         outResults.stillConnected = distinctOldItems.filter(u => currentActivePool.has(u.username));
         outResults.disconnected = distinctOldItems.filter(u => !currentActivePool.has(u.username));
+
+        // Auto-route to history if they ONLY uploaded history files
+        if (!processed.currFollowing && !processed.currFollowers) setActiveTab('history');
       }
 
-      // Execution Modules 3: Outbound Request Timelines
       if (files.pending) {
         const pendingData = await loadJson(files.pending);
         outResults.pending = pendingData.map((item, idx) => {
@@ -147,6 +133,9 @@ export default function App() {
           const daysAgo = Math.floor((Date.now() / 1000 - item.timestamp) / 86400);
           return username ? { username, daysAgo, fileIndex: idx } : null;
         }).filter(Boolean);
+
+        // Auto-route to pending if they ONLY uploaded pending
+        if (!processed.currFollowing && !processed.currFollowers && !processed.oldFollowing && !processed.oldFollowers) setActiveTab('pending');
       }
 
       setResults(outResults);
@@ -162,7 +151,7 @@ export default function App() {
   const hasActiveResults = results && Object.keys(results).length > 0;
 
   return (
-    <div className="min-h-screen bg-[#0A0A0A] text-white p-6 md:p-12 font-sans">
+    <div className="min-h-screen bg-[#0A0A0A] text-white p-6 md:p-12 font-sans selection:bg-cyan-500/30">
       <AnimatePresence>
         {toast && (
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="fixed top-5 right-5 bg-gradient-to-r from-cyan-600 to-emerald-600 px-6 py-3 rounded-2xl z-50 flex items-center gap-2 shadow-xl shadow-black/40 border border-white/10 font-medium">
@@ -171,69 +160,124 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <div className="max-w-7xl mx-auto space-y-10">
+      <div className="max-w-6xl mx-auto space-y-10">
+
+        {/* Header */}
         <div className="text-center space-y-4">
-          <img src={AppLogo} alt="Network Audit Logo" className="mx-auto w-32 h-32 animate-pulse" />
-          <h1 className="text-5xl font-extrabold tracking-tighter bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">
+          <img src={AppLogo} alt="Network Audit Logo" className="mx-auto w-24 h-24" />
+          <h1 className="text-4xl md:text-5xl font-extrabold tracking-tighter bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">
             Network Intelligence
           </h1>
         </div>
 
         {/* Input Interface Matrix */}
-        <div className="bg-white/5 p-6 rounded-3xl border border-white/10 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-400 tracking-wider uppercase flex items-center gap-2"><ArrowRightLeft size={16} /> Data File Ingestion</h2>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            {[
-              { id: 'currFollowing', name: 'New Following' },
-              { id: 'currFollowers', name: 'New Followers' },
-              { id: 'oldFollowing', name: 'Old Following' },
-              { id: 'oldFollowers', name: 'Old Followers' },
-              { id: 'pending', name: 'Pending Requests' },
-            ].map((fileConfig) => (
-              <label key={fileConfig.id} className={`group relative border border-dashed rounded-2xl p-4 transition-all duration-300 cursor-pointer text-center flex flex-col justify-center items-center h-28 ${files[fileConfig.id] ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400' : 'bg-white/[0.02] border-white/10 hover:border-cyan-500/50 hover:bg-white/[0.04]'}`}>
-                <input type="file" className="hidden" onChange={(e) => setFiles(p => ({ ...p, [fileConfig.id]: e.target.files[0] }))} />
-                {files[fileConfig.id] ? <Check size={20} className="mb-1 text-emerald-400 animate-scale" /> : <Upload size={20} className="mb-1 text-gray-500 group-hover:text-cyan-400 transition-colors" />}
-                <span className="font-bold text-xs tracking-tight block text-white group-hover:text-cyan-300 transition-colors">{fileConfig.name}</span>
-                <span className="text-[10px] text-gray-500 truncate max-w-[110px] mt-1 block">{files[fileConfig.id]?.name || 'Upload JSON'}</span>
-              </label>
-            ))}
+        {!hasActiveResults && (
+          <div className="bg-white/[0.02] p-8 rounded-3xl border border-white/10 space-y-6">
+            <h2 className="text-sm font-semibold text-gray-400 tracking-wider uppercase flex items-center gap-2">
+              <ArrowRightLeft size={16} /> Data File Ingestion
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              {[
+                { id: 'currFollowing', name: 'New Following' },
+                { id: 'currFollowers', name: 'New Followers' },
+                { id: 'oldFollowing', name: 'Old Following' },
+                { id: 'oldFollowers', name: 'Old Followers' },
+                { id: 'pending', name: 'Pending Requests' },
+              ].map((fileConfig) => (
+                <label key={fileConfig.id} className={`group relative border border-dashed rounded-2xl p-4 transition-all duration-300 cursor-pointer text-center flex flex-col justify-center items-center h-32 ${files[fileConfig.id] ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400' : 'bg-white/[0.02] border-white/10 hover:border-cyan-500/50 hover:bg-white/[0.04]'}`}>
+                  <input type="file" className="hidden" onChange={(e) => setFiles(p => ({ ...p, [fileConfig.id]: e.target.files[0] }))} />
+                  {files[fileConfig.id] ? <Check size={24} className="mb-2 text-emerald-400" /> : <Upload size={24} className="mb-2 text-gray-500 group-hover:text-cyan-400 transition-colors" />}
+                  <span className="font-bold text-xs tracking-tight block text-white group-hover:text-cyan-300 transition-colors">{fileConfig.name}</span>
+                  <span className="text-[10px] text-gray-500 truncate w-full mt-1 px-2 block">{files[fileConfig.id]?.name || 'Upload JSON'}</span>
+                </label>
+              ))}
+            </div>
+            <button onClick={handleProcess} disabled={isProcessing} className="w-full py-4 rounded-2xl bg-gradient-to-r from-cyan-600 to-emerald-600 font-bold text-lg hover:from-cyan-500 hover:to-emerald-500 shadow-lg shadow-cyan-950/20 transition-all active:scale-[0.99] disabled:opacity-50">
+              {isProcessing ? 'Compiling Datasets...' : 'Analyze Selection'}
+            </button>
           </div>
-          <button onClick={handleProcess} disabled={isProcessing} className="w-full py-4 rounded-2xl bg-gradient-to-r from-cyan-600 to-emerald-600 font-bold hover:from-cyan-500 hover:to-emerald-500 shadow-lg shadow-cyan-950/20 transition-all active:scale-[0.99] disabled:opacity-50">
-            {isProcessing ? 'Compiling Datasets...' : 'Analyze Selection'}
-          </button>
-        </div>
+        )}
 
-        {/* Processed Analytics Workspace */}
+        {/* Workspace Navigation & Results */}
         {hasActiveResults && (
           <div className="space-y-6">
-            <div className="relative">
-              <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-              <input type="text" placeholder="Search usernames across lists..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value.toLowerCase())} className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-6 py-4 outline-none focus:border-cyan-500 text-sm transition-colors placeholder:text-gray-600" />
+
+            {/* The Navigation Bar */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/5 p-2 rounded-2xl border border-white/10 sticky top-4 z-40 backdrop-blur-xl">
+              <div className="flex p-1 bg-black/40 rounded-xl">
+                <NavTab id="core" icon={<Users size={16} />} label="Core Network" active={activeTab} set={setActiveTab} />
+                <NavTab id="history" icon={<History size={16} />} label="Time Machine" active={activeTab} set={setActiveTab} />
+                <NavTab id="pending" icon={<Send size={16} />} label="Outbound" active={activeTab} set={setActiveTab} />
+              </div>
+
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                <input type="text" placeholder="Filter current view..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value.toLowerCase())} className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 outline-none focus:border-cyan-500 text-sm transition-colors placeholder:text-gray-600" />
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {results.notFollowingBack && (
-                <StandardCard title="Not Following Back" data={results.notFollowingBack.filter(u => u.username.includes(searchTerm))} sort={sortConfig.notFollowingBack} onSort={() => cycleSort('notFollowingBack')} color="rose" links={userLinks} />
-              )}
-              {results.fans && (
-                <StandardCard title="Fans" data={results.fans.filter(u => u.username.includes(searchTerm))} sort={sortConfig.fans} onSort={() => cycleSort('fans')} color="cyan" links={userLinks} />
-              )}
-              {results.mutuals && (
-                <StandardCard title="Mutuals" data={results.mutuals.filter(u => u.username.includes(searchTerm))} sort={sortConfig.mutuals} onSort={() => cycleSort('mutuals')} color="emerald" links={userLinks} />
-              )}
-              {results.stillConnected && (
-                <StandardCard title="Still Connected" data={results.stillConnected.filter(u => u.username.includes(searchTerm))} sort={sortConfig.stillConnected} onSort={() => cycleSort('stillConnected')} color="teal" links={userLinks} />
-              )}
-              {results.disconnected && (
-                <StandardCard title="Disconnected" data={results.disconnected.filter(u => u.username.includes(searchTerm))} sort={sortConfig.disconnected} onSort={() => cycleSort('disconnected')} color="orange" links={userLinks} />
-              )}
-              {results.pending && (
-                <StandardCard title="Pending Outbound" data={results.pending.filter(u => u.username.includes(searchTerm))} sort={sortConfig.pending} onSort={() => cycleSort('pending')} color="purple" links={userLinks} isPending={true} />
-              )}
-            </div>
+            {/* Tab: Core Network */}
+            {activeTab === 'core' && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {results.notFollowingBack ? (
+                  <StandardCard title="Not Following Back" data={results.notFollowingBack.filter(u => u.username.includes(searchTerm))} sort={sortConfig.notFollowingBack} onSort={() => cycleSort('notFollowingBack')} color="rose" links={userLinks} />
+                ) : <EmptyState message="Upload Current Following & Followers to see this data." />}
+
+                {results.fans ? (
+                  <StandardCard title="Fans" data={results.fans.filter(u => u.username.includes(searchTerm))} sort={sortConfig.fans} onSort={() => cycleSort('fans')} color="cyan" links={userLinks} />
+                ) : <EmptyState message="Upload Current Following & Followers to see this data." />}
+
+                {results.mutuals ? (
+                  <StandardCard title="Mutuals" data={results.mutuals.filter(u => u.username.includes(searchTerm))} sort={sortConfig.mutuals} onSort={() => cycleSort('mutuals')} color="emerald" links={userLinks} />
+                ) : <EmptyState message="Upload Current Following & Followers to see this data." />}
+              </motion.div>
+            )}
+
+            {/* Tab: History / Drift */}
+            {activeTab === 'history' && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+                {results.stillConnected ? (
+                  <StandardCard title="Still Connected" data={results.stillConnected.filter(u => u.username.includes(searchTerm))} sort={sortConfig.stillConnected} onSort={() => cycleSort('stillConnected')} color="teal" links={userLinks} />
+                ) : <EmptyState message="Upload Old & Current files to track network stability." />}
+
+                {results.disconnected ? (
+                  <StandardCard title="Disconnected" data={results.disconnected.filter(u => u.username.includes(searchTerm))} sort={sortConfig.disconnected} onSort={() => cycleSort('disconnected')} color="orange" links={userLinks} />
+                ) : <EmptyState message="Upload Old & Current files to track account drift." />}
+              </motion.div>
+            )}
+
+            {/* Tab: Pending Requests */}
+            {activeTab === 'pending' && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl mx-auto">
+                {results.pending ? (
+                  <StandardCard title="Pending Requests" data={results.pending.filter(u => u.username.includes(searchTerm))} sort={sortConfig.pending} onSort={() => cycleSort('pending')} color="purple" links={userLinks} isPending={true} />
+                ) : <EmptyState message="Upload your Pending Requests JSON to view outbound history." />}
+              </motion.div>
+            )}
+
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// Sub-component for Nav Tabs
+function NavTab({ id, icon, label, active, set }) {
+  const isActive = active === id;
+  return (
+    <button onClick={() => set(id)} className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${isActive ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}>
+      {icon} <span className="hidden sm:inline">{label}</span>
+    </button>
+  );
+}
+
+// Sub-component for missing data in tabs
+function EmptyState({ message }) {
+  return (
+    <div className="border border-dashed border-white/10 rounded-3xl p-6 h-[480px] flex flex-col items-center justify-center text-center bg-white/[0.01]">
+      <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-4 text-gray-600"><Users size={20} /></div>
+      <p className="text-gray-500 text-sm max-w-[200px]">{message}</p>
     </div>
   );
 }
@@ -264,11 +308,10 @@ function StandardCard({ title, data, sort, onSort, color, links, isPending }) {
   });
 
   return (
-    <div className={`border rounded-3xl p-5 h-[480px] flex flex-col transition-all duration-300 shadow-md ${styles[color]}`}>
-      {/* List Header controls */}
+    <div className={`border rounded-3xl p-5 h-[500px] flex flex-col transition-all duration-300 shadow-md ${styles[color]}`}>
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="font-bold text-base text-white tracking-tight">{title}</span>
+          <span className="font-bold text-lg text-white tracking-tight">{title}</span>
           <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-white/10 opacity-70 text-white">{data.length}</span>
         </div>
 
@@ -278,7 +321,6 @@ function StandardCard({ title, data, sort, onSort, color, links, isPending }) {
         </button>
       </div>
 
-      {/* Target Accounts Stream */}
       <div className="flex-1 overflow-y-auto pr-1 space-y-1.5 scrollbar-thin scrollbar-thumb-white/10">
         {sortedItems.map((item) => (
           <div key={item.username} className="flex justify-between items-center bg-white/[0.03] hover:bg-white/[0.07] p-3 rounded-xl transition-all duration-200 group border border-white/[0.02]">
