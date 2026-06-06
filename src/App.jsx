@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, Search, Check, Copy, Clock } from 'lucide-react';
+import { Upload, Search, Check, Copy, Clock, ArrowUpDown } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
 export default function App() {
@@ -11,7 +11,33 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [toast, setToast] = useState(null);
 
+  // Sorting state for each card
+  const [sortConfig, setSortConfig] = useState({
+    notFollowingBack: 'asc',
+    fans: 'asc',
+    mutuals: 'asc',
+    pending: 'oldest' // Default for pending is oldest first
+  });
+
   const triggerToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
+
+  const toggleSort = (key) => {
+    setSortConfig(prev => ({
+      ...prev,
+      [key]: key === 'pending'
+        ? (prev[key] === 'oldest' ? 'newest' : 'oldest')
+        : (prev[key] === 'asc' ? 'desc' : 'asc')
+    }));
+  };
+
+  // Sorting helper
+  const getSortedData = (data, key) => {
+    const order = sortConfig[key];
+    if (key === 'pending') {
+      return [...data].sort((a, b) => order === 'oldest' ? a.daysAgo - b.daysAgo : b.daysAgo - a.daysAgo);
+    }
+    return [...data].sort((a, b) => order === 'asc' ? a.localeCompare(b) : b.localeCompare(a));
+  };
 
   const processFile = (data, type) => {
     const tempLinks = { ...userLinks };
@@ -40,7 +66,7 @@ export default function App() {
       const username = item.label_values?.find(l => l.label === 'Username')?.value?.toLowerCase();
       const daysAgo = Math.floor((Date.now() / 1000 - item.timestamp) / 86400);
       return { username, daysAgo };
-    }).filter(u => u.username).sort((a, b) => b.daysAgo - a.daysAgo);
+    }).filter(u => u.username);
   };
 
   const handleProcess = async () => {
@@ -55,8 +81,6 @@ export default function App() {
 
     try {
       const newResults = {};
-
-      // Process Following/Followers only if both are present
       if (files.following && files.followers) {
         const followingData = await readJson(files.following);
         const followersData = await readJson(files.followers);
@@ -69,13 +93,10 @@ export default function App() {
         newResults.fans = followersList.filter(u => !followingSet.has(u));
         newResults.mutuals = followingList.filter(u => followersSet.has(u));
       }
-
-      // Process Pending only if present
       if (files.pending) {
         const pendingData = await readJson(files.pending);
         newResults.pending = processPending(pendingData);
       }
-
       setResults(newResults);
       triggerToast('Analysis complete!');
     } catch (e) { console.error(e); triggerToast('Error parsing JSON.'); }
@@ -95,9 +116,7 @@ export default function App() {
       </AnimatePresence>
 
       <div className="max-w-7xl mx-auto space-y-8">
-        <div className="text-center space-y-4">
-          <h1 className="text-5xl font-extrabold tracking-tighter bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">Network Intelligence</h1>
-        </div>
+        <h1 className="text-center text-5xl font-extrabold tracking-tighter bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">Network Intelligence</h1>
 
         <div className="grid md:grid-cols-3 gap-4">
           {['following', 'followers', 'pending'].map((type) => (
@@ -133,10 +152,10 @@ export default function App() {
             <input type="text" placeholder="Search usernames..." onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 outline-none focus:border-cyan-500" />
 
             <div className="grid md:grid-cols-4 gap-6">
-              {results.notFollowingBack && <StandardCard title="Not Following Back" data={results.notFollowingBack.filter(u => u.includes(searchTerm))} links={userLinks} color="rose" />}
-              {results.fans && <StandardCard title="Fans" data={results.fans.filter(u => u.includes(searchTerm))} links={userLinks} color="cyan" />}
-              {results.mutuals && <StandardCard title="Mutuals" data={results.mutuals.filter(u => u.includes(searchTerm))} links={userLinks} color="emerald" />}
-              {results.pending && <StandardCard title="Pending" data={results.pending.filter(p => p.username.includes(searchTerm.toLowerCase()))} links={userLinks} color="purple" isPending={true} />}
+              {results.notFollowingBack && <StandardCard title="Not Following Back" id="notFollowingBack" data={getSortedData(results.notFollowingBack.filter(u => u.includes(searchTerm)), 'notFollowingBack')} links={userLinks} color="rose" onSort={() => toggleSort('notFollowingBack')} />}
+              {results.fans && <StandardCard title="Fans" id="fans" data={getSortedData(results.fans.filter(u => u.includes(searchTerm)), 'fans')} links={userLinks} color="cyan" onSort={() => toggleSort('fans')} />}
+              {results.mutuals && <StandardCard title="Mutuals" id="mutuals" data={getSortedData(results.mutuals.filter(u => u.includes(searchTerm)), 'mutuals')} links={userLinks} color="emerald" onSort={() => toggleSort('mutuals')} />}
+              {results.pending && <StandardCard title="Pending" id="pending" data={getSortedData(results.pending.filter(p => p.username.includes(searchTerm.toLowerCase())), 'pending')} links={userLinks} color="purple" isPending={true} onSort={() => toggleSort('pending')} />}
             </div>
           </div>
         )}
@@ -145,7 +164,7 @@ export default function App() {
   );
 }
 
-function StandardCard({ title, data, links, color, isPending }) {
+function StandardCard({ title, data, links, color, isPending, onSort }) {
   const styles = {
     rose: "bg-rose-500/10 text-rose-400 border-rose-500/20",
     cyan: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
@@ -156,7 +175,10 @@ function StandardCard({ title, data, links, color, isPending }) {
   return (
     <div className={`border rounded-3xl p-6 h-[500px] flex flex-col ${styles[color]}`}>
       <div className="mb-4 font-bold text-lg flex items-center justify-between">
-        {title} <span className="text-xs opacity-50 bg-white/10 px-2 py-1 rounded-full">{data.length}</span>
+        <div className="flex items-center gap-2">
+          {title} <span className="text-xs opacity-50 bg-white/10 px-2 py-1 rounded-full">{data.length}</span>
+        </div>
+        <button onClick={onSort} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"><ArrowUpDown size={14} className="opacity-70" /></button>
       </div>
       <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-2">
         {data.map((item, i) => {
