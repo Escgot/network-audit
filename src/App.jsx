@@ -411,6 +411,23 @@ function StandardCard({ title, icon: Icon, data, sort, onSort, color, links, isP
     });
   }, [data, sort]);
 
+  // VIRTUALIZATION LOGIC
+  // We use a simple ref and state to only render items when scrolling.
+  // We set a fixed height for items to calculate the window.
+  const [scrollTop, setScrollTop] = useState(0);
+  const itemHeight = 60; // Approximate height of each row in px
+  const containerHeight = 440; // Approx visible area in px
+  const buffer = 5; // How many extra items to render off-screen
+
+  const handleScroll = (e) => setScrollTop(e.target.scrollTop);
+
+  const startIndex = Math.floor(scrollTop / itemHeight);
+  const endIndex = Math.min(sortedItems.length - 1, Math.floor((scrollTop + containerHeight) / itemHeight) + buffer);
+
+  const visibleItems = sortedItems.slice(Math.max(0, startIndex - buffer), endIndex + 1);
+  const paddingTop = Math.max(0, startIndex - buffer) * itemHeight;
+  const paddingBottom = Math.max(0, sortedItems.length - (endIndex + 1)) * itemHeight;
+
   return (
     <div className={`border rounded-3xl p-5 h-[500px] flex flex-col transition-all duration-300 ease-out hover:-translate-y-1 ${styles[color]}`}>
       <div className="mb-5 flex items-center justify-between pb-4 border-b border-white/5">
@@ -428,9 +445,12 @@ function StandardCard({ title, icon: Icon, data, sort, onSort, color, links, isP
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto pr-2 space-y-1.5 custom-scrollbar">
-        {sortedItems.map((item) => (
-          <div key={item.username} className="flex justify-between items-center bg-black/20 hover:bg-white/[0.04] p-3.5 rounded-xl border border-white/[0.01] hover:border-white/5 transition-all duration-200 ease-out group">
+      <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar" onScroll={handleScroll}>
+        {/* Placeholder spacer to maintain scrollbar size */}
+        <div style={{ height: paddingTop }}></div>
+
+        {visibleItems.map((item) => (
+          <div key={item.username} className="flex justify-between items-center bg-black/20 hover:bg-white/[0.04] p-3.5 mb-1.5 rounded-xl border border-white/[0.01] hover:border-white/5 transition-all duration-200 ease-out group">
             <a href={links[item.username] || `https://instagram.com/${item.username}`} target="_blank" rel="noopener noreferrer" className="text-sm font-medium tracking-tight text-gray-400 group-hover:text-white group-hover:translate-x-1 transform transition-all duration-200 truncate max-w-[70%]">
               @{item.username}
             </a>
@@ -445,6 +465,9 @@ function StandardCard({ title, icon: Icon, data, sort, onSort, color, links, isP
             )}
           </div>
         ))}
+
+        {/* Placeholder spacer to maintain scrollbar size */}
+        <div style={{ height: paddingBottom }}></div>
 
         {data.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-center p-6 opacity-30">
