@@ -23,23 +23,20 @@ You need a recent version of [Node.js](https://nodejs.org/) installed on your ma
 
 1. Clone the repository:
    ```bash
-   git clone <your-repo-url>
+   git clone <https://github.com/Escgot/network-audit.git>
    cd network-intelligence
-
-```
+   ```
 
 2. Install the dependencies:
-```bash
-npm install
-
-```
+   ```bash
+   npm install
+   ```
 
 
 3. Start the development server:
-```bash
-npm run dev
-
-```
+   ```bash
+   npm run dev
+   ```
 
 
 
