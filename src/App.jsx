@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, Search, Users, UserMinus, Heart, Copy, CheckCircle2 } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { Upload, Search, Users, UserMinus, Heart, Copy, CheckCircle2, ChevronRight, X } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
 export default function App() {
   const [files, setFiles] = useState({ following: null, followers: null });
@@ -56,85 +56,100 @@ export default function App() {
         fans: followersList.filter(u => !followingSet.has(u)),
         mutuals: followingList.filter(u => followersSet.has(u))
       });
-      triggerToast('Analysis complete!');
-    } catch (e) { triggerToast('Error parsing files.'); console.error(e); }
+      triggerToast('Analysis Complete');
+    } catch (e) { triggerToast('Invalid JSON format'); }
     finally { setIsProcessing(false); }
   };
 
   const chartData = results ? [
-    { name: 'Not Following Back', value: results.notFollowingBack.length, color: '#f43f5e' },
+    { name: 'Non-Followers', value: results.notFollowingBack.length, color: '#f43f5e' },
     { name: 'Fans', value: results.fans.length, color: '#06b6d4' },
     { name: 'Mutuals', value: results.mutuals.length, color: '#10b981' },
   ] : [];
 
   return (
-    <div className="min-h-screen bg-[#0A0A0A] text-white p-6 md:p-12 font-sans">
+    <div className="min-h-screen bg-[#050505] text-gray-200 font-sans selection:bg-cyan-500/30">
       <AnimatePresence>
-        {toast && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed top-5 right-5 bg-cyan-600 px-6 py-3 rounded-2xl z-50 flex items-center gap-2"><CheckCircle2 size={18} />{toast}</motion.div>}
+        {toast && <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-white text-black px-6 py-3 rounded-full shadow-2xl z-50 font-medium text-sm flex items-center gap-2"><CheckCircle2 size={16} />{toast}</motion.div>}
       </AnimatePresence>
 
-      <div className="max-w-6xl mx-auto space-y-8">
-        <div className="text-center space-y-4">
-          <h1 className="text-5xl font-extrabold tracking-tighter bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">Network Intelligence</h1>
-        </div>
+      <main className="max-w-5xl mx-auto px-6 py-12 md:py-20">
+        <header className="mb-16 text-center">
+          <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-white mb-4">Network Insights</h1>
+          <p className="text-gray-500 max-w-lg mx-auto">Analyze your Instagram connections with precision. A clean, professional audit of your social graph.</p>
+        </header>
 
-        <div className="grid md:grid-cols-2 gap-4">
-          {['following', 'followers'].map((type) => (
-            <label key={type} className="border-2 border-dashed border-white/10 rounded-3xl p-8 bg-white/5 hover:border-cyan-500 transition-all cursor-pointer text-center">
-              <input type="file" className="hidden" onChange={(e) => setFiles(prev => ({ ...prev, [type]: e.target.files[0] }))} />
-              <p className="font-bold capitalize">{type}.json</p>
-              <p className="text-xs text-gray-500 truncate">{files[type]?.name || 'Click to select'}</p>
-            </label>
-          ))}
-        </div>
-
-        <button onClick={handleProcess} className="w-full py-4 rounded-2xl bg-cyan-600 font-bold hover:bg-cyan-500 transition-all">Analyze Network</button>
-
-        {results && (
-          <div className="space-y-8">
-            <div className="bg-white/5 p-6 rounded-3xl border border-white/10 h-64 flex items-center justify-center">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={chartData} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                    {chartData.map((entry, index) => <Cell key={index} fill={entry.color} />)}
-                  </Pie>
-                  <Tooltip contentStyle={{ backgroundColor: '#000', borderRadius: '12px' }} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
+        {!results ? (
+          <div className="grid md:grid-cols-2 gap-6">
+            {['following', 'followers'].map((type) => (
+              <label key={type} className="group relative border border-white/10 rounded-2xl p-8 bg-white/[0.02] hover:bg-white/[0.04] transition-all cursor-pointer">
+                <input type="file" className="hidden" onChange={(e) => setFiles(prev => ({ ...prev, [type]: e.target.files[0] }))} />
+                <div className="mb-4 text-cyan-500"><Upload size={24} /></div>
+                <p className="font-semibold text-white capitalize">{type}.json</p>
+                <p className="text-sm text-gray-500 mt-1 truncate">{files[type]?.name || 'Click to select file'}</p>
+              </label>
+            ))}
+            <button onClick={handleProcess} disabled={isProcessing} className="md:col-span-2 w-full py-4 rounded-xl bg-white text-black font-bold hover:bg-gray-200 transition-colors flex items-center justify-center gap-2">
+              {isProcessing ? 'Analyzing...' : 'Run Audit'}
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-12">
+            <div className="grid md:grid-cols-3 gap-6 items-center bg-white/[0.02] border border-white/10 rounded-3xl p-8">
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={chartData} innerRadius={50} outerRadius={70} paddingAngle={8} dataKey="value">
+                      {chartData.map((e, i) => <Cell key={i} fill={e.color} />)}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="md:col-span-2 grid grid-cols-3 gap-4">
+                {chartData.map((d) => (
+                  <div key={d.name} className="p-4 rounded-2xl bg-white/[0.03] border border-white/5">
+                    <p className="text-3xl font-bold text-white">{d.value}</p>
+                    <p className="text-xs text-gray-500 uppercase tracking-wider mt-1">{d.name}</p>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            <input type="text" placeholder="Search usernames..." onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 outline-none focus:border-cyan-500" />
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600" size={18} />
+              <input type="text" placeholder="Filter by username..." onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-transparent border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white focus:border-white/30 transition-all outline-none" />
+            </div>
 
-            <div className="grid md:grid-cols-3 gap-6">
-              <StandardCard title="Not Following Back" data={results.notFollowingBack.filter(u => u.includes(searchTerm))} links={userLinks} color="rose" />
-              <StandardCard title="Fans" data={results.fans.filter(u => u.includes(searchTerm))} links={userLinks} color="cyan" />
-              <StandardCard title="Mutuals" data={results.mutuals.filter(u => u.includes(searchTerm))} links={userLinks} color="emerald" />
+            <div className="grid md:grid-cols-3 gap-8">
+              <ResultSection title="Not Following Back" data={results.notFollowingBack} searchTerm={searchTerm} links={userLinks} color="red" />
+              <ResultSection title="Fans" data={results.fans} searchTerm={searchTerm} links={userLinks} color="blue" />
+              <ResultSection title="Mutuals" data={results.mutuals} searchTerm={searchTerm} links={userLinks} color="green" />
             </div>
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }
 
-function StandardCard({ title, data, links, color }) {
-  const styles = {
-    rose: "bg-rose-500/10 text-rose-400 border-rose-500/20",
-    cyan: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
-    emerald: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-  };
+function ResultSection({ title, data, searchTerm, links, color }) {
+  const filtered = data.filter(u => u.includes(searchTerm.toLowerCase()));
+  const colors = { red: "text-red-500", blue: "text-cyan-500", green: "text-emerald-500" };
 
   return (
-    <div className={`border rounded-3xl p-6 h-[500px] flex flex-col ${styles[color]}`}>
-      <div className="mb-4 font-bold text-lg flex items-center gap-2">{title} <span className="opacity-50">({data.length})</span></div>
-      <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-2">
-        {data.map(u => (
-          <div key={u} className="flex justify-between items-center bg-white/5 p-3 rounded-xl hover:bg-white/10 transition-all">
-            <a href={links[u]} target="_blank" rel="noopener noreferrer" className="text-sm">@{u}</a>
-            <button onClick={() => navigator.clipboard.writeText(u)}><Copy size={14} /></button>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-medium text-gray-400">{title}</h3>
+        <span className={`text-xs px-2 py-1 rounded bg-white/5 ${colors[color]}`}>{filtered.length}</span>
+      </div>
+      <div className="space-y-2">
+        {filtered.slice(0, 50).map(u => (
+          <div key={u} className="flex items-center justify-between px-4 py-3 rounded-lg bg-white/[0.02] border border-white/5 hover:bg-white/[0.05] transition-all group">
+            <a href={links[u]} target="_blank" className="text-sm text-gray-300 hover:text-white transition-colors truncate">@{u}</a>
+            <button onClick={() => navigator.clipboard.writeText(u)} className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/10 rounded"><Copy size={12} /></button>
           </div>
         ))}
+        {filtered.length > 50 && <p className="text-xs text-gray-600 text-center pt-2">And {filtered.length - 50} more...</p>}
       </div>
     </div>
   );
