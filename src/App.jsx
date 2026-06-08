@@ -2,11 +2,13 @@ import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Upload, Search, Check, Copy, Clock, ArrowUpDown, ArrowRightLeft,
-  Users, History, Send, UserMinus, Star, UserCheck, Link as LinkIcon, Unlink, FileJson, Calendar, Activity
+  Users, History, Send, UserMinus, Star, UserCheck, Link as LinkIcon, Unlink, FileJson, Calendar, Activity,
+  ChevronRight, ShieldCheck, BarChart3, Zap
 } from 'lucide-react';
 import AppLogo from './assets/logo.png';
 
 export default function App() {
+  const [appStarted, setAppStarted] = useState(false);
   const [files, setFiles] = useState({
     currFollowing: null, currFollowers: null,
     oldFollowing: null, oldFollowers: null,
@@ -179,124 +181,181 @@ export default function App() {
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-600/30 rounded-full blur-[120px] pointer-events-none mix-blend-screen" />
       <div className="absolute bottom-[-10%] right-[-5%] w-[35%] h-[35%] bg-emerald-600/20 rounded-full blur-[100px] pointer-events-none mix-blend-screen" />
       <div className="absolute top-[40%] left-[60%] w-[25%] h-[25%] bg-cyan-600/20 rounded-full blur-[90px] pointer-events-none mix-blend-screen" />
-      <AnimatePresence>
-        {toast && (
-          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="fixed top-5 right-5 bg-white/10 backdrop-blur-3xl px-6 py-3 rounded-2xl z-50 flex items-center gap-2 shadow-2xl shadow-black/50 border border-white/20 font-medium text-white">
-            <Check size={18} />{toast}
+
+      <AnimatePresence mode="wait">
+        {!appStarted ? (
+          <motion.div key="landing" exit={{ opacity: 0, scale: 0.95, filter: "blur(10px)" }} transition={{ duration: 0.5 }}>
+            <LandingPage onStart={() => setAppStarted(true)} />
           </motion.div>
-        )}
-      </AnimatePresence>
-
-      <div className="max-w-6xl mx-auto space-y-8">
-
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }} className="text-center space-y-4 mb-4">
-          <img src={AppLogo} alt="Network Audit Logo" className="mx-auto w-24 h-24 drop-shadow-2xl select-none pointer-events-none" />
-          <h1 className="text-4xl md:text-5xl font-extrabold tracking-tighter bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">
-            Network Intelligence
-          </h1>
-        </motion.div>
-
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white/10 p-6 rounded-3xl border border-white/20 shadow-2xl shadow-black/50 space-y-5 backdrop-blur-3xl relative z-10">
-          <div className="flex justify-between items-center px-2">
-            <h2 className="text-sm font-bold text-gray-400 tracking-widest uppercase flex items-center gap-2">
-              <FileJson size={16} className="text-emerald-500" /> Data Ingestion
-            </h2>
-            {hasActiveResults && <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full font-bold tracking-widest uppercase border border-emerald-500/20 flex items-center gap-1.5"><Check size={10} /> Matrix Active</span>}
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-            {[
-              { id: 'currFollowing', name: 'New Following' },
-              { id: 'currFollowers', name: 'New Followers' },
-              { id: 'oldFollowing', name: 'Old Following' },
-              { id: 'oldFollowers', name: 'Old Followers' },
-              { id: 'pending', name: 'Pending Req' },
-              { id: 'recentRequests', name: 'Recent Req' },
-              { id: 'recentUnfollowed', name: 'Recent Unfollowed' },
-            ].map((fileConfig) => (
-              <FileUploadZone key={fileConfig.id} id={fileConfig.id} name={fileConfig.name} file={files[fileConfig.id]} setFile={handleSetFile} />
-            ))}
-          </div>
-          <button onClick={handleProcess} disabled={isProcessing} className="w-full py-4 rounded-2xl bg-gradient-to-r from-cyan-600 to-emerald-600 font-bold hover:from-cyan-500 hover:to-emerald-500 shadow-lg shadow-cyan-900/10 hover:shadow-cyan-500/20 hover:-translate-y-0.5 transition-all active:translate-y-0 active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2">
-            {isProcessing ? 'Compiling...' : (hasActiveResults ? <><ArrowRightLeft size={18} /> Update Analysis</> : 'Analyze Selection')}
-          </button>
-        </motion.div>
-
-        {hasActiveResults && (
-          <div className="space-y-6">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/10 p-2 rounded-3xl border border-white/20 sticky top-4 z-40 backdrop-blur-3xl shadow-2xl shadow-black/50">
-              <div className="flex p-1 bg-black/20 rounded-2xl overflow-x-auto custom-scrollbar border border-white/5 shadow-inner">
-                <NavTab id="core" icon={<Users size={16} />} label="Core Network" active={activeTab} set={setActiveTab} />
-                <NavTab id="history" icon={<History size={16} />} label="Time Machine" active={activeTab} set={setActiveTab} />
-                <NavTab id="activity" icon={<Activity size={16} />} label="Activity Log" active={activeTab} set={setActiveTab} />
-              </div>
-
-              <div className="relative flex-1 max-w-sm shrink-0 group">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-cyan-400 transition-colors" size={16} />
-                <input
-                  type="text"
-                  placeholder={activeTab === 'activity' ? "Search by handle, year, or month..." : "Filter current view..."}
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value.toLowerCase())}
-                  className="w-full bg-black/20 border border-white/10 rounded-2xl pl-10 pr-4 py-2.5 outline-none focus:border-white/30 text-sm transition-all placeholder:text-gray-400 focus:bg-white/10 focus:shadow-inner text-white shadow-inner"
-                />
-              </div>
-            </motion.div>
-
-            <AnimatePresence mode="wait">
-              {activeTab === 'core' && (
-                <motion.div key="core" variants={containerVariants} initial="hidden" animate="show" exit="exit" className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <motion.div variants={itemVariants} className="h-full">
-                    {results.notFollowingBack ? <StandardCard title="Not Following Back" icon={UserMinus} data={results.notFollowingBack.filter(u => u.username.includes(searchTerm))} sort={sortConfig.notFollowingBack} onSort={() => cycleSort('notFollowingBack')} color="rose" links={userLinks} /> : <EmptyState icon={UserMinus} title="No Core Data" message="Upload Current Following & Followers to view this metric." color="rose" />}
-                  </motion.div>
-                  <motion.div variants={itemVariants} className="h-full">
-                    {results.fans ? <StandardCard title="Fans" icon={Star} data={results.fans.filter(u => u.username.includes(searchTerm))} sort={sortConfig.fans} onSort={() => cycleSort('fans')} color="cyan" links={userLinks} /> : <EmptyState icon={Star} title="No Core Data" message="Upload Current Following & Followers to view this metric." color="cyan" />}
-                  </motion.div>
-                  <motion.div variants={itemVariants} className="h-full">
-                    {results.mutuals ? <StandardCard title="Mutuals" icon={UserCheck} data={results.mutuals.filter(u => u.username.includes(searchTerm))} sort={sortConfig.mutuals} onSort={() => cycleSort('mutuals')} color="emerald" links={userLinks} /> : <EmptyState icon={UserCheck} title="No Core Data" message="Upload Current Following & Followers to view this metric." color="emerald" />}
-                  </motion.div>
-                </motion.div>
-              )}
-
-              {activeTab === 'history' && (
-                <motion.div key="history" variants={containerVariants} initial="hidden" animate="show" exit="exit" className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-                  <motion.div variants={itemVariants} className="h-full">
-                    {results.stillConnected ? <StandardCard title="Still Connected" icon={LinkIcon} data={results.stillConnected.filter(u => u.username.includes(searchTerm))} sort={sortConfig.stillConnected} onSort={() => cycleSort('stillConnected')} color="teal" links={userLinks} /> : <EmptyState icon={LinkIcon} title="No Historical Data" message="Upload Old & Current files to track network stability." color="teal" />}
-                  </motion.div>
-                  <motion.div variants={itemVariants} className="h-full">
-                    {results.disconnected ? <StandardCard title="Disconnected" icon={Unlink} data={results.disconnected.filter(u => u.username.includes(searchTerm))} sort={sortConfig.disconnected} onSort={() => cycleSort('disconnected')} color="orange" links={userLinks} /> : <EmptyState icon={Unlink} title="No Historical Data" message="Upload Old & Current files to track account drift." color="orange" />}
-                  </motion.div>
-                </motion.div>
-              )}
-
-              {activeTab === 'activity' && (
-                <motion.div key="activity" variants={containerVariants} initial="hidden" animate="show" exit="exit" className="flex flex-wrap gap-6 justify-center items-start">
-                  {results.pending && (
-                    <motion.div variants={itemVariants} className="flex-1 min-w-[300px] max-w-lg">
-                      <GroupedPendingCard title="Pending Requests" icon={Send} data={results.pending} searchTerm={searchTerm} sort={sortConfig.pending} onSort={() => cycleSort('pending')} color="purple" links={userLinks} />
-                    </motion.div>
-                  )}
-                  {results.recentRequests && (
-                    <motion.div variants={itemVariants} className="flex-1 min-w-[300px] max-w-lg">
-                      <GroupedPendingCard title="Recent Follow Req." icon={Clock} data={results.recentRequests} searchTerm={searchTerm} sort={sortConfig.recentRequests} onSort={() => cycleSort('recentRequests')} color="cyan" links={userLinks} />
-                    </motion.div>
-                  )}
-                  {results.recentUnfollowed && (
-                    <motion.div variants={itemVariants} className="flex-1 min-w-[300px] max-w-lg">
-                      <GroupedPendingCard title="Recent Unfollowed" icon={UserMinus} data={results.recentUnfollowed} searchTerm={searchTerm} sort={sortConfig.recentUnfollowed} onSort={() => cycleSort('recentUnfollowed')} color="rose" links={userLinks} />
-                    </motion.div>
-                  )}
-                  {!results.pending && !results.recentRequests && !results.recentUnfollowed && (
-                    <motion.div variants={itemVariants} className="w-full max-w-2xl mx-auto">
-                      <EmptyState icon={Activity} title="No Activity Data" message="Upload Pending Requests, Recent Requests, or Recent Unfollowed JSON to view history." color="purple" />
-                    </motion.div>
-                  )}
+        ) : (
+          <motion.div key="app" initial={{ opacity: 0, scale: 1.05, filter: "blur(10px)" }} animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }} transition={{ duration: 0.5, delay: 0.1 }}>
+            <AnimatePresence>
+              {toast && (
+                <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="fixed top-5 right-5 bg-white/10 backdrop-blur-3xl px-6 py-3 rounded-2xl z-50 flex items-center gap-2 shadow-2xl shadow-black/50 border border-white/20 font-medium text-white">
+                  <Check size={18} />{toast}
                 </motion.div>
               )}
             </AnimatePresence>
-          </div>
+
+            <div className="max-w-6xl mx-auto space-y-8">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }} className="text-center space-y-4 mb-4">
+                <img src={AppLogo} alt="Network Audit Logo" className="mx-auto w-24 h-24 drop-shadow-2xl select-none pointer-events-none" />
+                <h1 className="text-4xl md:text-5xl font-extrabold tracking-tighter bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">
+                  Network Intelligence
+                </h1>
+              </motion.div>
+
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white/10 p-6 rounded-3xl border border-white/20 shadow-2xl shadow-black/50 space-y-5 backdrop-blur-3xl relative z-10">
+                <div className="flex justify-between items-center px-2">
+                  <h2 className="text-sm font-bold text-gray-400 tracking-widest uppercase flex items-center gap-2">
+                    <FileJson size={16} className="text-emerald-500" /> Data Ingestion
+                  </h2>
+                  {hasActiveResults && <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full font-bold tracking-widest uppercase border border-emerald-500/20 flex items-center gap-1.5"><Check size={10} /> Matrix Active</span>}
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                  {[
+                    { id: 'currFollowing', name: 'New Following' },
+                    { id: 'currFollowers', name: 'New Followers' },
+                    { id: 'oldFollowing', name: 'Old Following' },
+                    { id: 'oldFollowers', name: 'Old Followers' },
+                    { id: 'pending', name: 'Pending Req' },
+                    { id: 'recentRequests', name: 'Recent Req' },
+                    { id: 'recentUnfollowed', name: 'Recent Unfollowed' },
+                  ].map((fileConfig) => (
+                    <FileUploadZone key={fileConfig.id} id={fileConfig.id} name={fileConfig.name} file={files[fileConfig.id]} setFile={handleSetFile} />
+                  ))}
+                </div>
+                <button onClick={handleProcess} disabled={isProcessing} className="w-full py-4 rounded-2xl bg-gradient-to-r from-cyan-600 to-emerald-600 font-bold hover:from-cyan-500 hover:to-emerald-500 shadow-lg shadow-cyan-900/10 hover:shadow-cyan-500/20 hover:-translate-y-0.5 transition-all active:translate-y-0 active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2">
+                  {isProcessing ? 'Compiling...' : (hasActiveResults ? <><ArrowRightLeft size={18} /> Update Analysis</> : 'Analyze Selection')}
+                </button>
+              </motion.div>
+
+              {hasActiveResults && (
+                <div className="space-y-6">
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/10 p-2 rounded-3xl border border-white/20 sticky top-4 z-40 backdrop-blur-3xl shadow-2xl shadow-black/50">
+                    <div className="flex p-1 bg-black/20 rounded-2xl overflow-x-auto custom-scrollbar border border-white/5 shadow-inner">
+                      <NavTab id="core" icon={<Users size={16} />} label="Core Network" active={activeTab} set={setActiveTab} />
+                      <NavTab id="history" icon={<History size={16} />} label="Time Machine" active={activeTab} set={setActiveTab} />
+                      <NavTab id="activity" icon={<Activity size={16} />} label="Activity Log" active={activeTab} set={setActiveTab} />
+                    </div>
+
+                    <div className="relative flex-1 max-w-sm shrink-0 group">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-cyan-400 transition-colors" size={16} />
+                      <input
+                        type="text"
+                        placeholder={activeTab === 'activity' ? "Search by handle, year, or month..." : "Filter current view..."}
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value.toLowerCase())}
+                        className="w-full bg-black/20 border border-white/10 rounded-2xl pl-10 pr-4 py-2.5 outline-none focus:border-white/30 text-sm transition-all placeholder:text-gray-400 focus:bg-white/10 focus:shadow-inner text-white shadow-inner"
+                      />
+                    </div>
+                  </motion.div>
+
+                  <AnimatePresence mode="wait">
+                    {activeTab === 'core' && (
+                      <motion.div key="core" variants={containerVariants} initial="hidden" animate="show" exit="exit" className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <motion.div variants={itemVariants} className="h-full">
+                          {results.notFollowingBack ? <StandardCard title="Not Following Back" icon={UserMinus} data={results.notFollowingBack.filter(u => u.username.includes(searchTerm))} sort={sortConfig.notFollowingBack} onSort={() => cycleSort('notFollowingBack')} color="rose" links={userLinks} /> : <EmptyState icon={UserMinus} title="No Core Data" message="Upload Current Following & Followers to view this metric." color="rose" />}
+                        </motion.div>
+                        <motion.div variants={itemVariants} className="h-full">
+                          {results.fans ? <StandardCard title="Fans" icon={Star} data={results.fans.filter(u => u.username.includes(searchTerm))} sort={sortConfig.fans} onSort={() => cycleSort('fans')} color="cyan" links={userLinks} /> : <EmptyState icon={Star} title="No Core Data" message="Upload Current Following & Followers to view this metric." color="cyan" />}
+                        </motion.div>
+                        <motion.div variants={itemVariants} className="h-full">
+                          {results.mutuals ? <StandardCard title="Mutuals" icon={UserCheck} data={results.mutuals.filter(u => u.username.includes(searchTerm))} sort={sortConfig.mutuals} onSort={() => cycleSort('mutuals')} color="emerald" links={userLinks} /> : <EmptyState icon={UserCheck} title="No Core Data" message="Upload Current Following & Followers to view this metric." color="emerald" />}
+                        </motion.div>
+                      </motion.div>
+                    )}
+
+                    {activeTab === 'history' && (
+                      <motion.div key="history" variants={containerVariants} initial="hidden" animate="show" exit="exit" className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+                        <motion.div variants={itemVariants} className="h-full">
+                          {results.stillConnected ? <StandardCard title="Still Connected" icon={LinkIcon} data={results.stillConnected.filter(u => u.username.includes(searchTerm))} sort={sortConfig.stillConnected} onSort={() => cycleSort('stillConnected')} color="teal" links={userLinks} /> : <EmptyState icon={LinkIcon} title="No Historical Data" message="Upload Old & Current files to track network stability." color="teal" />}
+                        </motion.div>
+                        <motion.div variants={itemVariants} className="h-full">
+                          {results.disconnected ? <StandardCard title="Disconnected" icon={Unlink} data={results.disconnected.filter(u => u.username.includes(searchTerm))} sort={sortConfig.disconnected} onSort={() => cycleSort('disconnected')} color="orange" links={userLinks} /> : <EmptyState icon={Unlink} title="No Historical Data" message="Upload Old & Current files to track account drift." color="orange" />}
+                        </motion.div>
+                      </motion.div>
+                    )}
+
+                    {activeTab === 'activity' && (
+                      <motion.div key="activity" variants={containerVariants} initial="hidden" animate="show" exit="exit" className="flex flex-wrap gap-6 justify-center items-start">
+                        {results.pending && (
+                          <motion.div variants={itemVariants} className="flex-1 min-w-[300px] max-w-lg">
+                            <GroupedPendingCard title="Pending Requests" icon={Send} data={results.pending} searchTerm={searchTerm} sort={sortConfig.pending} onSort={() => cycleSort('pending')} color="purple" links={userLinks} />
+                          </motion.div>
+                        )}
+                        {results.recentRequests && (
+                          <motion.div variants={itemVariants} className="flex-1 min-w-[300px] max-w-lg">
+                            <GroupedPendingCard title="Recent Follow Req." icon={Clock} data={results.recentRequests} searchTerm={searchTerm} sort={sortConfig.recentRequests} onSort={() => cycleSort('recentRequests')} color="cyan" links={userLinks} />
+                          </motion.div>
+                        )}
+                        {results.recentUnfollowed && (
+                          <motion.div variants={itemVariants} className="flex-1 min-w-[300px] max-w-lg">
+                            <GroupedPendingCard title="Recent Unfollowed" icon={UserMinus} data={results.recentUnfollowed} searchTerm={searchTerm} sort={sortConfig.recentUnfollowed} onSort={() => cycleSort('recentUnfollowed')} color="rose" links={userLinks} />
+                          </motion.div>
+                        )}
+                        {!results.pending && !results.recentRequests && !results.recentUnfollowed && (
+                          <motion.div variants={itemVariants} className="w-full max-w-2xl mx-auto">
+                            <EmptyState icon={Activity} title="No Activity Data" message="Upload Pending Requests, Recent Requests, or Recent Unfollowed JSON to view history." color="purple" />
+                          </motion.div>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+            </div>
+          </motion.div>
         )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// --- LANDING PAGE COMPONENT ---
+function LandingPage({ onStart }) {
+  return (
+    <div className="min-h-[85vh] flex flex-col items-center justify-center max-w-5xl mx-auto space-y-20 relative z-10 pt-10">
+      <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: "easeOut" }} className="text-center space-y-8 max-w-3xl">
+        <img src={AppLogo} alt="Logo" className="w-32 h-32 mx-auto drop-shadow-2xl select-none" />
+        <h1 className="text-5xl md:text-7xl font-extrabold tracking-tighter bg-gradient-to-r from-cyan-300 via-emerald-300 to-emerald-600 bg-clip-text text-transparent drop-shadow-sm leading-tight">
+          Manage <br /> Your Network.
+        </h1>
+        <p className="text-lg md:text-xl text-gray-300 font-medium leading-relaxed px-4">
+          Upload your Instagram data to generate a stunning, glass-rendered matrix of your followers, fans, mutuals, and outbound requests. All processed instantly on your device.
+        </p>
+
+        <div className="pt-6">
+          <button onClick={onStart} className="group relative inline-flex items-center gap-3 px-8 py-4 bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-3xl rounded-full text-white font-bold text-lg shadow-2xl hover:shadow-cyan-500/20 transition-all duration-300 active:scale-95 overflow-hidden">
+            <span className="relative z-10 flex items-center gap-2">Launch Workspace <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" /></span>
+            <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 to-emerald-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+          </button>
+        </div>
+      </motion.div>
+
+      <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }} className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full px-4">
+        <FeatureCard icon={ShieldCheck} title="Privacy First" desc="Your data never leaves your browser. Zero servers, zero tracking." color="cyan" />
+        <FeatureCard icon={BarChart3} title="Deep Analytics" desc="Track fans, unrequited follows, and historical connection shifts." color="emerald" />
+        <FeatureCard icon={Zap} title="Instant Matrices" desc="Powered by a high-performance React engine with Liquid Glass visuals." color="purple" />
+      </motion.div>
+    </div>
+  );
+}
+
+function FeatureCard({ icon: Icon, title, desc, color }) {
+  const colorMap = {
+    cyan: "text-cyan-400",
+    emerald: "text-emerald-400",
+    purple: "text-purple-400"
+  };
+  return (
+    <div className="bg-white/5 border border-white/10 backdrop-blur-3xl rounded-3xl p-6 shadow-2xl hover:bg-white/10 hover:border-white/20 transition-all duration-300 hover:-translate-y-1 group">
+      <div className={`w-12 h-12 rounded-2xl bg-black/20 border border-white/10 shadow-inner flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300`}>
+        <Icon size={24} className={`${colorMap[color]} drop-shadow-md`} />
       </div>
+      <h3 className="text-xl font-bold text-white mb-2">{title}</h3>
+      <p className="text-gray-400 text-sm leading-relaxed">{desc}</p>
     </div>
   );
 }
