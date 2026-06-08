@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Upload, Search, Check, Copy, Clock, ArrowUpDown, ArrowRightLeft,
-  Users, History, Send, UserMinus, Star, UserCheck, Link as LinkIcon, Unlink, FileJson, Calendar
+  Users, History, Send, UserMinus, Star, UserCheck, Link as LinkIcon, Unlink, FileJson, Calendar, Activity
 } from 'lucide-react';
 import AppLogo from './assets/logo.png';
 
@@ -10,7 +10,7 @@ export default function App() {
   const [files, setFiles] = useState({
     currFollowing: null, currFollowers: null,
     oldFollowing: null, oldFollowers: null,
-    pending: null
+    pending: null, recentRequests: null, recentUnfollowed: null
   });
 
   const [results, setResults] = useState(null);
@@ -27,7 +27,9 @@ export default function App() {
     mutuals: { type: 'alpha', dir: 'asc' },
     stillConnected: { type: 'alpha', dir: 'asc' },
     disconnected: { type: 'alpha', dir: 'asc' },
-    pending: { type: 'time', dir: 'desc' } // Default to newest first
+    pending: { type: 'time', dir: 'desc' },
+    recentRequests: { type: 'time', dir: 'desc' },
+    recentUnfollowed: { type: 'time', dir: 'desc' }
   });
 
   const triggerToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
@@ -64,6 +66,24 @@ export default function App() {
 
     setUserLinks(prev => ({ ...prev, ...tempLinks }));
     return items;
+  };
+
+  const parseTemporalJsonFile = (data) => {
+    return data.map((item, idx) => {
+      const listData = item.string_list_data?.[0] || {};
+      const username = (listData.value || item.title || item.label_values?.find(l => l.label === 'Username')?.value)?.toLowerCase();
+
+      const unixTime = listData.timestamp || item.timestamp;
+      const dateObj = unixTime ? new Date(unixTime * 1000) : null;
+
+      const isoDate = dateObj ? dateObj.toISOString().split('T')[0] : 'Unknown Date';
+      const prettyDate = dateObj ? dateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'Unknown Date';
+      const daysAgo = unixTime ? Math.floor((Date.now() / 1000 - unixTime) / 86400) : 0;
+
+      const searchString = `${username} ${isoDate} ${prettyDate}`.toLowerCase();
+
+      return username ? { username, daysAgo, fileIndex: idx, isoDate, prettyDate, searchString, timestamp: unixTime } : null;
+    }).filter(Boolean);
   };
 
   const handleProcess = async () => {
@@ -112,31 +132,24 @@ export default function App() {
       }
 
       if (files.pending) {
-        const pendingData = await loadJson(files.pending);
-        outResults.pending = pendingData.map((item, idx) => {
-          const listData = item.string_list_data?.[0] || {};
-          const username = (listData.value || item.title || item.label_values?.find(l => l.label === 'Username')?.value)?.toLowerCase();
-
-          // Architecture for temporal data extraction
-          const unixTime = listData.timestamp || item.timestamp;
-          const dateObj = unixTime ? new Date(unixTime * 1000) : null;
-
-          const isoDate = dateObj ? dateObj.toISOString().split('T')[0] : 'Unknown Date';
-          const prettyDate = dateObj ? dateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'Unknown Date';
-          const daysAgo = unixTime ? Math.floor((Date.now() / 1000 - unixTime) / 86400) : 0;
-
-          // Composite search string index for unified querying
-          const searchString = `${username} ${isoDate} ${prettyDate}`.toLowerCase();
-
-          return username ? { username, daysAgo, fileIndex: idx, isoDate, prettyDate, searchString } : null;
-        }).filter(Boolean);
+        outResults.pending = parseTemporalJsonFile(await loadJson(files.pending));
+      }
+      if (files.recentRequests) {
+        outResults.recentRequests = parseTemporalJsonFile(await loadJson(files.recentRequests));
+      }
+      if (files.recentUnfollowed) {
+        outResults.recentUnfollowed = parseTemporalJsonFile(await loadJson(files.recentUnfollowed));
       }
 
       setResults(outResults);
 
-      if (files.currFollowing && files.currFollowers && !files.oldFollowing && !files.oldFollowers && !files.pending) setActiveTab('core');
-      else if ((files.oldFollowing || files.oldFollowers) && !files.currFollowing && !files.currFollowers && !files.pending) setActiveTab('history');
-      else if (files.pending && !files.currFollowing && !files.currFollowers && !files.oldFollowing && !files.oldFollowers) setActiveTab('pending');
+      const hasCore = files.currFollowing && files.currFollowers;
+      const hasHistory = files.oldFollowing || files.oldFollowers;
+      const hasActivity = files.pending || files.recentRequests || files.recentUnfollowed;
+
+      if (hasCore && !hasHistory && !hasActivity) setActiveTab('core');
+      else if (hasHistory && !hasCore && !hasActivity) setActiveTab('history');
+      else if (hasActivity && !hasCore && !hasHistory) setActiveTab('activity');
 
       triggerToast('Network matrix updated successfully!');
     } catch (err) {
@@ -191,13 +204,15 @@ export default function App() {
             {hasActiveResults && <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full font-bold tracking-widest uppercase border border-emerald-500/20 flex items-center gap-1.5"><Check size={10} /> Matrix Active</span>}
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
             {[
               { id: 'currFollowing', name: 'New Following' },
               { id: 'currFollowers', name: 'New Followers' },
               { id: 'oldFollowing', name: 'Old Following' },
               { id: 'oldFollowers', name: 'Old Followers' },
-              { id: 'pending', name: 'Pending Requests' },
+              { id: 'pending', name: 'Pending Req' },
+              { id: 'recentRequests', name: 'Recent Req' },
+              { id: 'recentUnfollowed', name: 'Recent Unfollowed' },
             ].map((fileConfig) => (
               <FileUploadZone key={fileConfig.id} id={fileConfig.id} name={fileConfig.name} file={files[fileConfig.id]} setFile={handleSetFile} />
             ))}
@@ -213,14 +228,14 @@ export default function App() {
               <div className="flex p-1 bg-black/20 rounded-2xl overflow-x-auto custom-scrollbar border border-white/5 shadow-inner">
                 <NavTab id="core" icon={<Users size={16} />} label="Core Network" active={activeTab} set={setActiveTab} />
                 <NavTab id="history" icon={<History size={16} />} label="Time Machine" active={activeTab} set={setActiveTab} />
-                <NavTab id="pending" icon={<Send size={16} />} label="Outbound" active={activeTab} set={setActiveTab} />
+                <NavTab id="activity" icon={<Activity size={16} />} label="Activity Log" active={activeTab} set={setActiveTab} />
               </div>
 
               <div className="relative flex-1 max-w-sm shrink-0 group">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-cyan-400 transition-colors" size={16} />
                 <input
                   type="text"
-                  placeholder={activeTab === 'pending' ? "Search by handle, year, or month..." : "Filter current view..."}
+                  placeholder={activeTab === 'activity' ? "Search by handle, year, or month..." : "Filter current view..."}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value.toLowerCase())}
                   className="w-full bg-black/20 border border-white/10 rounded-2xl pl-10 pr-4 py-2.5 outline-none focus:border-white/30 text-sm transition-all placeholder:text-gray-400 focus:bg-white/10 focus:shadow-inner text-white shadow-inner"
@@ -254,11 +269,28 @@ export default function App() {
                 </motion.div>
               )}
 
-              {activeTab === 'pending' && (
-                <motion.div key="pending" variants={containerVariants} initial="hidden" animate="show" exit="exit" className="max-w-2xl mx-auto">
-                  <motion.div variants={itemVariants} className="h-full">
-                    {results.pending ? <GroupedPendingCard title="Outbound Requests" icon={Send} data={results.pending} searchTerm={searchTerm} sort={sortConfig.pending} onSort={() => cycleSort('pending')} color="purple" links={userLinks} /> : <EmptyState icon={Send} title="No Outbound Data" message="Upload your Pending Requests JSON to view history." color="purple" />}
-                  </motion.div>
+              {activeTab === 'activity' && (
+                <motion.div key="activity" variants={containerVariants} initial="hidden" animate="show" exit="exit" className="flex flex-wrap gap-6 justify-center items-start">
+                  {results.pending && (
+                    <motion.div variants={itemVariants} className="flex-1 min-w-[300px] max-w-lg">
+                      <GroupedPendingCard title="Pending Requests" icon={Send} data={results.pending} searchTerm={searchTerm} sort={sortConfig.pending} onSort={() => cycleSort('pending')} color="purple" links={userLinks} />
+                    </motion.div>
+                  )}
+                  {results.recentRequests && (
+                    <motion.div variants={itemVariants} className="flex-1 min-w-[300px] max-w-lg">
+                      <GroupedPendingCard title="Recent Follow Req." icon={Clock} data={results.recentRequests} searchTerm={searchTerm} sort={sortConfig.recentRequests} onSort={() => cycleSort('recentRequests')} color="cyan" links={userLinks} />
+                    </motion.div>
+                  )}
+                  {results.recentUnfollowed && (
+                    <motion.div variants={itemVariants} className="flex-1 min-w-[300px] max-w-lg">
+                      <GroupedPendingCard title="Recent Unfollowed" icon={UserMinus} data={results.recentUnfollowed} searchTerm={searchTerm} sort={sortConfig.recentUnfollowed} onSort={() => cycleSort('recentUnfollowed')} color="rose" links={userLinks} />
+                    </motion.div>
+                  )}
+                  {!results.pending && !results.recentRequests && !results.recentUnfollowed && (
+                    <motion.div variants={itemVariants} className="w-full max-w-2xl mx-auto">
+                      <EmptyState icon={Activity} title="No Activity Data" message="Upload Pending Requests, Recent Requests, or Recent Unfollowed JSON to view history." color="purple" />
+                    </motion.div>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
