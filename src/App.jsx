@@ -316,9 +316,9 @@ export default function App() {
 // --- LANDING PAGE COMPONENT ---
 function LandingPage({ onStart }) {
   return (
-    <div className="min-h-[85vh] flex flex-col items-center justify-center max-w-5xl mx-auto space-y-20 relative z-10 pt-10">
-      <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: "easeOut" }} className="text-center space-y-8 max-w-3xl">
-        <img src={AppLogo} alt="Logo" className="w-32 h-32 mx-auto drop-shadow-2xl select-none" />
+    <div className="min-h-[85vh] flex flex-col items-center justify-center max-w-5xl mx-auto space-y-10 relative z-10">
+      <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: "easeOut" }} className="text-center space-y-4 max-w-4xl">
+        <img src={AppLogo} alt="Logo" className="w-50 h-50 mx-auto drop-shadow-2xl select-none" />
         <h1 className="text-5xl md:text-7xl font-extrabold tracking-tighter bg-gradient-to-r from-cyan-300 via-emerald-300 to-emerald-600 bg-clip-text text-transparent drop-shadow-sm leading-tight">
           Manage <br /> Your Network.
         </h1>
