@@ -161,10 +161,14 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white p-6 md:p-12 font-sans selection:bg-cyan-500/30 pb-24 overflow-x-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-slate-900 to-emerald-950 animate-gradient text-white p-6 md:p-12 font-sans selection:bg-white/30 pb-24 overflow-x-hidden relative">
+      {/* Decorative Blobs for Glass Refraction */}
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-600/30 rounded-full blur-[120px] pointer-events-none mix-blend-screen" />
+      <div className="absolute bottom-[-10%] right-[-5%] w-[35%] h-[35%] bg-emerald-600/20 rounded-full blur-[100px] pointer-events-none mix-blend-screen" />
+      <div className="absolute top-[40%] left-[60%] w-[25%] h-[25%] bg-cyan-600/20 rounded-full blur-[90px] pointer-events-none mix-blend-screen" />
       <AnimatePresence>
         {toast && (
-          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="fixed top-5 right-5 bg-gradient-to-r from-cyan-600 to-emerald-600 px-6 py-3 rounded-2xl z-50 flex items-center gap-2 shadow-xl shadow-black/40 border border-white/10 font-medium">
+          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="fixed top-5 right-5 bg-white/10 backdrop-blur-3xl px-6 py-3 rounded-2xl z-50 flex items-center gap-2 shadow-2xl shadow-black/50 border border-white/20 font-medium text-white">
             <Check size={18} />{toast}
           </motion.div>
         )}
@@ -179,7 +183,7 @@ export default function App() {
           </h1>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white/[0.02] p-6 rounded-3xl border border-white/5 shadow-2xl shadow-black/50 space-y-5 backdrop-blur-xl">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white/10 p-6 rounded-3xl border border-white/20 shadow-2xl shadow-black/50 space-y-5 backdrop-blur-3xl relative z-10">
           <div className="flex justify-between items-center px-2">
             <h2 className="text-sm font-bold text-gray-400 tracking-widest uppercase flex items-center gap-2">
               <FileJson size={16} className="text-emerald-500" /> Data Ingestion
@@ -205,8 +209,8 @@ export default function App() {
 
         {hasActiveResults && (
           <div className="space-y-6">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/[0.02] p-2 rounded-2xl border border-white/5 sticky top-4 z-40 backdrop-blur-2xl shadow-xl shadow-black/40">
-              <div className="flex p-1 bg-black/40 rounded-xl overflow-x-auto custom-scrollbar">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/10 p-2 rounded-3xl border border-white/20 sticky top-4 z-40 backdrop-blur-3xl shadow-2xl shadow-black/50">
+              <div className="flex p-1 bg-black/20 rounded-2xl overflow-x-auto custom-scrollbar border border-white/5 shadow-inner">
                 <NavTab id="core" icon={<Users size={16} />} label="Core Network" active={activeTab} set={setActiveTab} />
                 <NavTab id="history" icon={<History size={16} />} label="Time Machine" active={activeTab} set={setActiveTab} />
                 <NavTab id="pending" icon={<Send size={16} />} label="Outbound" active={activeTab} set={setActiveTab} />
@@ -219,7 +223,7 @@ export default function App() {
                   placeholder={activeTab === 'pending' ? "Search by handle, year, or month..." : "Filter current view..."}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value.toLowerCase())}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 outline-none focus:border-cyan-500/50 text-sm transition-all placeholder:text-gray-600 focus:bg-white/[0.08] focus:shadow-[0_0_20px_-5px_rgba(6,182,212,0.1)]"
+                  className="w-full bg-black/20 border border-white/10 rounded-2xl pl-10 pr-4 py-2.5 outline-none focus:border-white/30 text-sm transition-all placeholder:text-gray-400 focus:bg-white/10 focus:shadow-inner text-white shadow-inner"
                 />
               </div>
             </motion.div>
@@ -290,11 +294,11 @@ function FileUploadZone({ id, name, file, setFile }) {
   return (
     <div
       onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}
-      className={`relative border-2 border-dashed rounded-2xl p-3 transition-all duration-300 ease-out flex flex-col justify-center items-center h-28 overflow-hidden group ${isDragging
-        ? 'border-cyan-400 bg-cyan-500/10 scale-[1.02] z-10 shadow-[0_0_30px_-5px_rgba(6,182,212,0.3)]'
+      className={`relative border border-dashed rounded-3xl p-3 transition-all duration-300 ease-out flex flex-col justify-center items-center h-28 overflow-hidden group ${isDragging
+        ? 'border-white/50 bg-white/20 scale-[1.02] z-10 shadow-2xl shadow-black/50 backdrop-blur-3xl'
         : file
-          ? 'border-emerald-500/50 bg-emerald-500/10 hover:bg-emerald-500/15'
-          : 'border-white/10 bg-white/[0.02] hover:border-cyan-500/30 hover:bg-white/[0.04]'
+          ? 'border-emerald-500/50 bg-emerald-500/20 shadow-lg backdrop-blur-2xl'
+          : 'border-white/10 bg-black/20 hover:border-white/30 hover:bg-black/10 shadow-inner'
         }`}
     >
       <input type="file" accept=".json" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" onChange={handleChange} />
@@ -334,17 +338,17 @@ function NavTab({ id, icon, label, active, set }) {
 
 function EmptyState({ icon: Icon, title, message, color }) {
   const colorMap = {
-    rose: "bg-rose-500/5 text-rose-500 border-rose-500/10",
-    cyan: "bg-cyan-500/5 text-cyan-500 border-cyan-500/10",
-    emerald: "bg-emerald-500/5 text-emerald-500 border-emerald-500/10",
-    teal: "bg-teal-500/5 text-teal-500 border-teal-500/10",
-    orange: "bg-orange-500/5 text-orange-500 border-orange-500/10",
-    purple: "bg-purple-500/5 text-purple-500 border-purple-500/10"
+    rose: "bg-white/10 text-white border-white/20 shadow-2xl backdrop-blur-2xl",
+    cyan: "bg-white/10 text-white border-white/20 shadow-2xl backdrop-blur-2xl",
+    emerald: "bg-white/10 text-white border-white/20 shadow-2xl backdrop-blur-2xl",
+    teal: "bg-white/10 text-white border-white/20 shadow-2xl backdrop-blur-2xl",
+    orange: "bg-white/10 text-white border-white/20 shadow-2xl backdrop-blur-2xl",
+    purple: "bg-white/10 text-white border-white/20 shadow-2xl backdrop-blur-2xl"
   };
 
   return (
     <div className={`border rounded-3xl p-6 h-[500px] flex flex-col items-center justify-center text-center ${colorMap[color]}`}>
-      <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${colorMap[color].split(' ')[0]} border ${colorMap[color].split(' ')[2]}`}><Icon size={28} className="opacity-80" /></div>
+      <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 bg-black/20 shadow-inner border border-white/10"><Icon size={28} className="opacity-80" /></div>
       <h3 className="font-bold text-lg mb-2 text-white">{title}</h3>
       <p className="text-sm opacity-70 max-w-[200px]">{message}</p>
     </div>
@@ -353,11 +357,11 @@ function EmptyState({ icon: Icon, title, message, color }) {
 
 function StandardCard({ title, icon: Icon, data, sort, onSort, color, links }) {
   const styles = {
-    rose: "bg-rose-500/[0.02] text-rose-400 border-rose-500/10 hover:border-rose-500/30 hover:shadow-[0_0_30px_-5px_rgba(244,63,94,0.12)]",
-    cyan: "bg-cyan-500/[0.02] text-cyan-400 border-cyan-500/10 hover:border-cyan-500/30 hover:shadow-[0_0_30px_-5px_rgba(6,182,212,0.12)]",
-    emerald: "bg-emerald-500/[0.02] text-emerald-400 border-emerald-500/10 hover:border-emerald-500/30 hover:shadow-[0_0_30px_-5px_rgba(16,185,129,0.12)]",
-    teal: "bg-teal-500/[0.02] text-teal-400 border-teal-500/10 hover:border-teal-500/30 hover:shadow-[0_0_30px_-5px_rgba(20,184,166,0.12)]",
-    orange: "bg-orange-500/[0.02] text-orange-400 border-orange-500/10 hover:border-orange-500/30 hover:shadow-[0_0_30px_-5px_rgba(249,115,22,0.12)]"
+    rose: "bg-white/10 text-white border-white/20 shadow-2xl backdrop-blur-2xl hover:border-white/30 hover:bg-white/[0.12]",
+    cyan: "bg-white/10 text-white border-white/20 shadow-2xl backdrop-blur-2xl hover:border-white/30 hover:bg-white/[0.12]",
+    emerald: "bg-white/10 text-white border-white/20 shadow-2xl backdrop-blur-2xl hover:border-white/30 hover:bg-white/[0.12]",
+    teal: "bg-white/10 text-white border-white/20 shadow-2xl backdrop-blur-2xl hover:border-white/30 hover:bg-white/[0.12]",
+    orange: "bg-white/10 text-white border-white/20 shadow-2xl backdrop-blur-2xl hover:border-white/30 hover:bg-white/[0.12]"
   };
 
   const getSortBadgeLabel = () => sort.type === 'alpha' ? (sort.dir === 'asc' ? 'A-Z' : 'Z-A') : (sort.dir === 'asc' ? 'Oldest' : 'Newest');
@@ -400,7 +404,7 @@ function StandardCard({ title, icon: Icon, data, sort, onSort, color, links }) {
       <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar" onScroll={handleScroll}>
         <div style={{ height: paddingTop }}></div>
         {visibleItems.map((item) => (
-          <div key={item.username} className="flex justify-between items-center bg-black/20 hover:bg-white/[0.04] p-3.5 mb-1.5 rounded-xl border border-white/[0.01] hover:border-white/5 transition-all duration-200 ease-out group">
+          <div key={item.username} className="flex justify-between items-center bg-black/20 hover:bg-white/10 p-3.5 mb-1.5 rounded-2xl border border-white/5 hover:border-white/20 hover:shadow-lg transition-all duration-300 ease-out group">
             <a href={links[item.username] || `https://instagram.com/${item.username}`} target="_blank" rel="noopener noreferrer" className="text-sm font-medium tracking-tight text-gray-400 group-hover:text-white group-hover:translate-x-1 transform transition-all duration-200 truncate max-w-[70%]">
               @{item.username}
             </a>
@@ -419,7 +423,7 @@ function StandardCard({ title, icon: Icon, data, sort, onSort, color, links }) {
 // --- NEW COMPONENT: Outbound Temporal Matrix ---
 function GroupedPendingCard({ title, icon: Icon, data, sort, onSort, color, links, searchTerm }) {
   const styles = {
-    purple: "bg-purple-500/[0.02] text-purple-400 border-purple-500/10 hover:border-purple-500/30 hover:shadow-[0_0_30px_-5px_rgba(168,85,247,0.12)]"
+    purple: "bg-white/10 text-white border-white/20 shadow-2xl backdrop-blur-2xl hover:border-white/30 hover:bg-white/[0.12]"
   };
 
   const getSortBadgeLabel = () => sort.type === 'alpha' ? (sort.dir === 'asc' ? 'A-Z' : 'Z-A') : (sort.dir === 'asc' ? 'Oldest First' : 'Newest First');
@@ -481,7 +485,7 @@ function GroupedPendingCard({ title, icon: Icon, data, sort, onSort, color, link
             return (
               <div key={dateKey} className="mb-6 last:mb-0">
                 {/* Native Sticky Date Header */}
-                <div className="sticky top-0 z-10 bg-[#0a0a0a]/95 backdrop-blur-md py-2 mb-2 border-b border-white/5 flex justify-between items-center">
+                <div className="sticky top-0 z-10 bg-black/40 backdrop-blur-3xl py-3 px-2 mb-2 rounded-xl border border-white/10 flex justify-between items-center shadow-lg">
                   <div className="flex items-center gap-2">
                     <Calendar size={12} className="text-purple-500" />
                     <span className="text-xs font-bold text-purple-400 uppercase tracking-widest">{group.prettyDate}</span>
@@ -492,7 +496,7 @@ function GroupedPendingCard({ title, icon: Icon, data, sort, onSort, color, link
                 {/* Items */}
                 <div className="space-y-1.5">
                   {group.items.map(item => (
-                    <div key={item.username} className="flex justify-between items-center bg-black/20 hover:bg-white/[0.04] p-3 rounded-xl border border-white/[0.01] hover:border-white/5 transition-all duration-200 group">
+                    <div key={item.username} className="flex justify-between items-center bg-black/20 hover:bg-white/10 p-3 rounded-2xl border border-white/5 hover:border-white/20 hover:shadow-lg transition-all duration-300 group">
                       <a href={links[item.username] || `https://instagram.com/${item.username}`} target="_blank" rel="noopener noreferrer" className="text-sm font-medium tracking-tight text-gray-400 group-hover:text-white group-hover:translate-x-1 transform transition-all duration-200 truncate max-w-[70%]">
                         @{item.username}
                       </a>
