@@ -1,5 +1,3 @@
-Here is the complete raw markdown code for your `README.md` file:
-
 # Network Intelligence
 
 Network Intelligence is a high-performance auditing tool designed to help you manage your social media connections. It allows you to analyze your following, follower, and pending request data to gain insights into your network growth, social hygiene, and relationship stability.
@@ -10,7 +8,7 @@ Network Intelligence is a high-performance auditing tool designed to help you ma
 * **Time Machine (History)**: Compare your current network with historical data to track "Still Connected" accounts and "Disconnected" users (accounts that have unfollowed, been unfollowed, or deactivated).
 * **Outbound Auditing**: Manage pending follow requests with chronological sorting to identify old, stale requests.
 * **Intelligent Sorting**: Toggle between alphabetical (A-Z/Z-A) and chronological (Oldest/Newest) sorting for every data category.
-* **Searchable Insights**: Filter through thousands of usernames instantly across any category.
+* **Searchable Insights**: Filter through thousands of usernames instantly across any category. 
 * **Interactive Dashboard**: Modular UI with tabbed navigation for a clean, focused experience.
 
 ## Getting Started

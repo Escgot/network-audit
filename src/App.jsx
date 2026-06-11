@@ -57,12 +57,29 @@ export default function App() {
 
   const parseJsonFile = (data, type) => {
     const tempLinks = { ...userLinks };
-    let rawList = type.includes('following') ? (data.relationships_following || []) : (Array.isArray(data) ? data : []);
+
+    // 1. Handle all possible Instagram JSON structures
+    let rawList = [];
+    if (Array.isArray(data)) {
+      rawList = data;
+    } else {
+      rawList = data.relationships_following ||
+        data.relationships_followers ||
+        data.followers ||
+        data.following ||
+        [];
+    }
 
     const items = rawList.map((item, idx) => {
-      const username = (item.title || item.string_list_data?.[0]?.value)?.toLowerCase();
+      // 2. Safely extract, lowercase, AND trim invisible spaces
+      let username = (item.title || item.string_list_data?.[0]?.value);
+      if (username) {
+        username = username.toLowerCase().trim();
+      }
+
       const href = item.string_list_data?.[0]?.href || '#';
       if (username) tempLinks[username] = href;
+
       return username ? { username, href, fileIndex: idx } : null;
     }).filter(Boolean);
 
@@ -108,6 +125,7 @@ export default function App() {
       if (files.currFollowers) processed.currFollowers = parseJsonFile(await loadJson(files.currFollowers), 'followers');
       if (files.oldFollowing) processed.oldFollowing = parseJsonFile(await loadJson(files.oldFollowing), 'following');
       if (files.oldFollowers) processed.oldFollowers = parseJsonFile(await loadJson(files.oldFollowers), 'followers');
+      console.log("New Followers Loaded:", processed.currFollowers?.length || 0);
 
       if (processed.currFollowing && processed.currFollowers) {
         const activeFollowersSet = new Set(processed.currFollowers.map(u => u.username));
@@ -118,19 +136,30 @@ export default function App() {
       }
 
       if (processed.oldFollowing || processed.oldFollowers) {
-        const currentActivePool = new Set([
-          ...(processed.currFollowing?.map(u => u.username) || []),
-          ...(processed.currFollowers?.map(u => u.username) || [])
-        ]);
+        // FIX: Ensure we actually have the new files to compare against!
+        // Without this, if new files are missing, everyone incorrectly goes to "Disconnected".
+        if (!processed.currFollowing && !processed.currFollowers) {
+          triggerToast('Upload current Following & Followers to use the Time Machine.');
+        } else {
+          // 1. Create a massive pool of EVERYONE in the new files (both following & followers)
+          const currentActivePool = new Set([
+            ...(processed.currFollowing?.map(u => u.username) || []),
+            ...(processed.currFollowers?.map(u => u.username) || [])
+          ]);
 
-        const combinedOldMap = new Map();
-        [...(processed.oldFollowing || []), ...(processed.oldFollowers || [])].forEach(item => {
-          if (!combinedOldMap.has(item.username)) combinedOldMap.set(item.username, item);
-        });
-        const distinctOldItems = Array.from(combinedOldMap.values());
+          // 2. Create a massive pool of EVERYONE in the old files (removing duplicates)
+          const combinedOldMap = new Map();
+          [...(processed.oldFollowing || []), ...(processed.oldFollowers || [])].forEach(item => {
+            if (!combinedOldMap.has(item.username)) combinedOldMap.set(item.username, item);
+          });
+          const distinctOldItems = Array.from(combinedOldMap.values());
 
-        outResults.stillConnected = distinctOldItems.filter(u => currentActivePool.has(u.username));
-        outResults.disconnected = distinctOldItems.filter(u => !currentActivePool.has(u.username));
+          // 3. Cross-check: If the old user exists anywhere in the new pool, they are still connected.
+          outResults.stillConnected = distinctOldItems.filter(u => currentActivePool.has(u.username));
+
+          // 4. If the old user is nowhere to be found in the new pool, they are disconnected.
+          outResults.disconnected = distinctOldItems.filter(u => !currentActivePool.has(u.username));
+        }
       }
 
       if (files.pending) {
