@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Upload, Search, Check, Copy, Clock, ArrowUpDown, ArrowRightLeft,
@@ -6,6 +6,78 @@ import {
   ChevronRight, ShieldCheck, BarChart3, Zap
 } from 'lucide-react';
 import AppLogo from './assets/logo.png';
+
+function VirtualList({ items, itemHeight, renderItem, className, stickyIndices = [] }) {
+  const [scrollTop, setScrollTop] = useState(0);
+  const [clientHeight, setClientHeight] = useState(600); // Default fallback
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (let entry of entries) {
+        setClientHeight(entry.contentRect.height);
+      }
+    });
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  const startIndex = Math.max(0, Math.floor(scrollTop / itemHeight) - 3);
+  const endIndex = Math.min(items.length, Math.ceil((scrollTop + clientHeight) / itemHeight) + 3);
+
+  // Determine active sticky header
+  let activeStickyIndex = -1;
+  let nextStickyIndex = -1;
+  
+  if (stickyIndices.length > 0) {
+    const currentIndex = Math.floor(scrollTop / itemHeight);
+    for (let i = 0; i < stickyIndices.length; i++) {
+      if (stickyIndices[i] <= currentIndex) {
+        activeStickyIndex = stickyIndices[i];
+      } else {
+        nextStickyIndex = stickyIndices[i];
+        break;
+      }
+    }
+  }
+
+  let floatingHeaderTop = scrollTop;
+  if (nextStickyIndex !== -1) {
+    const nextHeaderTop = nextStickyIndex * itemHeight;
+    if (nextHeaderTop - scrollTop < itemHeight) {
+      floatingHeaderTop = nextHeaderTop - itemHeight;
+    }
+  }
+
+  const visibleItems = [];
+  for (let i = startIndex; i < endIndex; i++) {
+    if (i === activeStickyIndex && floatingHeaderTop >= i * itemHeight) continue;
+    visibleItems.push(
+      <div key={i} style={{ position: 'absolute', top: i * itemHeight, width: '100%', height: itemHeight }}>
+        {renderItem(items[i], i)}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      onScroll={(e) => setScrollTop(e.target.scrollTop)}
+      style={{ height: '100%', overflowY: 'auto', position: 'relative' }}
+      className={className}
+    >
+      <div style={{ height: items.length * itemHeight, width: '100%', position: 'relative' }}>
+        {activeStickyIndex !== -1 && (
+          <div style={{ position: 'absolute', top: floatingHeaderTop, width: '100%', height: itemHeight, zIndex: 10 }}>
+            {renderItem(items[activeStickyIndex], activeStickyIndex)}
+          </div>
+        )}
+        {visibleItems}
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   const [appStarted, setAppStarted] = useState(false);
@@ -22,6 +94,7 @@ export default function App() {
   const [toast, setToast] = useState(null);
 
   const [activeTab, setActiveTab] = useState('core');
+  const [showUploadModal, setShowUploadModal] = useState(true);
 
   const [sortConfig, setSortConfig] = useState({
     notFollowingBack: { type: 'alpha', dir: 'asc' },
@@ -183,6 +256,7 @@ export default function App() {
       else if (hasActivity && !hasCore && !hasHistory) setActiveTab('activity');
 
       triggerToast('Network matrix updated successfully!');
+      setShowUploadModal(false);
     } catch (err) {
       console.error(err);
       triggerToast('Error analyzing files. Verify file integrity.');
@@ -205,7 +279,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-slate-900 to-emerald-950 animate-gradient text-white p-6 md:p-12 font-sans selection:bg-white/30 pb-24 overflow-x-hidden relative">
+    <div className="h-screen bg-gradient-to-br from-indigo-950 via-slate-900 to-emerald-950 animate-gradient text-white p-4 md:p-6 font-sans selection:bg-white/30 overflow-hidden relative flex flex-col">
       {/* Decorative Blobs for Glass Refraction */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-600/30 rounded-full blur-[120px] pointer-events-none mix-blend-screen" />
       <div className="absolute bottom-[-10%] right-[-5%] w-[35%] h-[35%] bg-emerald-600/20 rounded-full blur-[100px] pointer-events-none mix-blend-screen" />
@@ -213,11 +287,11 @@ export default function App() {
 
       <AnimatePresence mode="wait">
         {!appStarted ? (
-          <motion.div key="landing" exit={{ opacity: 0, scale: 0.95, filter: "blur(10px)" }} transition={{ duration: 0.5 }}>
+          <motion.div key="landing" exit={{ opacity: 0, scale: 0.95, filter: "blur(10px)" }} transition={{ duration: 0.5 }} className="flex-1 flex flex-col">
             <LandingPage onStart={() => setAppStarted(true)} />
           </motion.div>
         ) : (
-          <motion.div key="app" initial={{ opacity: 0, scale: 1.05, filter: "blur(10px)" }} animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }} transition={{ duration: 0.5, delay: 0.1 }}>
+          <motion.div key="app" className="flex-1 flex flex-col min-h-0 w-full" initial={{ opacity: 0, scale: 1.05, filter: "blur(10px)" }} animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }} transition={{ duration: 0.5, delay: 0.1 }}>
             <AnimatePresence>
               {toast && (
                 <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="fixed top-5 right-5 bg-white/10 backdrop-blur-3xl px-6 py-3 rounded-2xl z-50 flex items-center gap-2 shadow-2xl shadow-black/50 border border-white/20 font-medium text-white">
@@ -226,20 +300,132 @@ export default function App() {
               )}
             </AnimatePresence>
 
-            <div className="max-w-6xl mx-auto space-y-8">
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }} className="text-center space-y-4 mb-4">
-                <img src={AppLogo} alt="Network Audit Logo" className="mx-auto w-24 h-24 drop-shadow-2xl select-none pointer-events-none" />
-                <h1 className="text-4xl md:text-5xl font-extrabold tracking-tighter bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">
+            <div className="max-w-6xl mx-auto flex flex-col min-h-0 h-full w-full gap-4">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }} className="text-center flex-shrink-0">
+                <h1 className="text-3xl md:text-4xl font-extrabold tracking-tighter bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent flex items-center justify-center gap-4">
+                  <img src={AppLogo} alt="Logo" className="w-20 h-20 drop-shadow-2xl select-none pointer-events-none" />
                   Network Intelligence
                 </h1>
               </motion.div>
 
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white/10 p-6 rounded-3xl border border-white/20 shadow-2xl shadow-black/50 space-y-5 backdrop-blur-3xl relative z-10">
+              {/* Data Ingestion moved to Modal popup */}
+
+              {hasActiveResults && (
+                <div className="flex-1 flex flex-col min-h-0 gap-4">
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-end gap-4 bg-white/10 p-2 rounded-3xl border border-white/20 z-40 backdrop-blur-3xl shadow-2xl shadow-black/50 flex-shrink-0">
+                    <div className="relative w-full group">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-cyan-400 transition-colors" size={16} />
+                      <input
+                        type="text"
+                        placeholder={activeTab === 'activity' ? "Search by handle, year, or month..." : "Filter current view..."}
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value.toLowerCase())}
+                        className="w-full bg-black/20 border border-white/10 rounded-2xl pl-10 pr-4 py-2 outline-none focus:border-white/30 text-sm transition-all placeholder:text-gray-400 focus:bg-white/10 focus:shadow-inner text-white shadow-inner"
+                      />
+                    </div>
+                  </motion.div>
+
+                  {/* Navbar moved to root to fix scrolling issue */}
+
+                  <AnimatePresence mode="wait">
+                    {activeTab === 'core' && (
+                      <motion.div key="core" variants={containerVariants} initial="hidden" animate="show" exit="exit" className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 min-h-0">
+                        <motion.div variants={itemVariants} className="h-full min-h-0 flex flex-col">
+                          {results.notFollowingBack ? <StandardCard title="Not Following Back" icon={UserMinus} data={results.notFollowingBack.filter(u => u.username.includes(searchTerm))} sort={sortConfig.notFollowingBack} onSort={() => cycleSort('notFollowingBack')} color="rose" links={userLinks} /> : <EmptyState icon={UserMinus} title="No Core Data" message="Upload Current Following & Followers to view this metric." color="rose" />}
+                        </motion.div>
+                        <motion.div variants={itemVariants} className="h-full min-h-0 flex flex-col">
+                          {results.fans ? <StandardCard title="Fans" icon={Star} data={results.fans.filter(u => u.username.includes(searchTerm))} sort={sortConfig.fans} onSort={() => cycleSort('fans')} color="cyan" links={userLinks} /> : <EmptyState icon={Star} title="No Core Data" message="Upload Current Following & Followers to view this metric." color="cyan" />}
+                        </motion.div>
+                        <motion.div variants={itemVariants} className="h-full min-h-0 flex flex-col">
+                          {results.mutuals ? <StandardCard title="Mutuals" icon={UserCheck} data={results.mutuals.filter(u => u.username.includes(searchTerm))} sort={sortConfig.mutuals} onSort={() => cycleSort('mutuals')} color="emerald" links={userLinks} /> : <EmptyState icon={UserCheck} title="No Core Data" message="Upload Current Following & Followers to view this metric." color="emerald" />}
+                        </motion.div>
+                      </motion.div>
+                    )}
+
+                    {activeTab === 'history' && (
+                      <motion.div key="history" variants={containerVariants} initial="hidden" animate="show" exit="exit" className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto w-full flex-1 min-h-0">
+                        <motion.div variants={itemVariants} className="h-full min-h-0 flex flex-col">
+                          {results.stillConnected ? <StandardCard title="Still Connected" icon={LinkIcon} data={results.stillConnected.filter(u => u.username.includes(searchTerm))} sort={sortConfig.stillConnected} onSort={() => cycleSort('stillConnected')} color="teal" links={userLinks} /> : <EmptyState icon={LinkIcon} title="No Historical Data" message="Upload Old & Current files to track network stability." color="teal" />}
+                        </motion.div>
+                        <motion.div variants={itemVariants} className="h-full min-h-0 flex flex-col">
+                          {results.disconnected ? <StandardCard title="Disconnected" icon={Unlink} data={results.disconnected.filter(u => u.username.includes(searchTerm))} sort={sortConfig.disconnected} onSort={() => cycleSort('disconnected')} color="orange" links={userLinks} /> : <EmptyState icon={Unlink} title="No Historical Data" message="Upload Old & Current files to track account drift." color="orange" />}
+                        </motion.div>
+                      </motion.div>
+                    )}
+
+                    {activeTab === 'activity' && (
+                      <motion.div key="activity" variants={containerVariants} initial="hidden" animate="show" exit="exit" className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 min-h-0">
+                        {results.pending && (
+                          <motion.div variants={itemVariants} className="h-full min-h-0 flex flex-col">
+                            <GroupedPendingCard title="Pending Requests" icon={Send} data={results.pending} searchTerm={searchTerm} sort={sortConfig.pending} onSort={() => cycleSort('pending')} color="purple" links={userLinks} />
+                          </motion.div>
+                        )}
+                        {results.recentRequests && (
+                          <motion.div variants={itemVariants} className="h-full min-h-0 flex flex-col">
+                            <GroupedPendingCard title="Recent Follow Req." icon={Clock} data={results.recentRequests} searchTerm={searchTerm} sort={sortConfig.recentRequests} onSort={() => cycleSort('recentRequests')} color="cyan" links={userLinks} />
+                          </motion.div>
+                        )}
+                        {results.recentUnfollowed && (
+                          <motion.div variants={itemVariants} className="h-full min-h-0 flex flex-col">
+                            <GroupedPendingCard title="Recent Unfollowed" icon={UserMinus} data={results.recentUnfollowed} searchTerm={searchTerm} sort={sortConfig.recentUnfollowed} onSort={() => cycleSort('recentUnfollowed')} color="rose" links={userLinks} />
+                          </motion.div>
+                        )}
+                        {!results.pending && !results.recentRequests && !results.recentUnfollowed && (
+                          <motion.div variants={itemVariants} className="col-span-3 h-full min-h-0 flex flex-col max-w-2xl mx-auto w-full">
+                            <EmptyState icon={Activity} title="No Activity Data" message="Upload Pending Requests, Recent Requests, or Recent Unfollowed JSON to view history." color="purple" />
+                          </motion.div>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {appStarted && (
+          <motion.div 
+            initial={{ opacity: 0, x: -20 }} 
+            animate={{ opacity: 1, x: 0 }} 
+            exit={{ opacity: 0, x: -20 }}
+            className="fixed left-4 top-4 flex flex-col gap-2 p-2 bg-black/40 backdrop-blur-3xl rounded-2xl border border-white/10 shadow-2xl z-50 group hover:bg-black/60 transition-all duration-300"
+          >
+            <NavTab id="upload" icon={<Upload size={20} />} label="Data Ingestion" active={showUploadModal ? 'upload' : null} set={() => setShowUploadModal(true)} />
+            {hasActiveResults && (
+              <>
+                <NavTab id="core" icon={<Users size={20} />} label="Core Network" active={!showUploadModal ? activeTab : null} set={(id) => { setActiveTab(id); setShowUploadModal(false); }} />
+                <NavTab id="history" icon={<History size={20} />} label="Time Machine" active={!showUploadModal ? activeTab : null} set={(id) => { setActiveTab(id); setShowUploadModal(false); }} />
+                <NavTab id="activity" icon={<Activity size={20} />} label="Activity Log" active={!showUploadModal ? activeTab : null} set={(id) => { setActiveTab(id); setShowUploadModal(false); }} />
+              </>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Upload Modal Popup */}
+      <AnimatePresence>
+        {showUploadModal && appStarted && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
+            onClick={(e) => {
+              if (e.target === e.currentTarget && hasActiveResults) setShowUploadModal(false);
+            }}
+          >
+            <motion.div initial={{ scale: 0.95, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.95, opacity: 0, y: 20 }} className="w-full max-w-5xl">
+              <div className="bg-[#0a0a0a]/90 p-8 rounded-3xl border border-white/20 shadow-2xl shadow-black/50 space-y-6 backdrop-blur-3xl relative">
                 <div className="flex justify-between items-center px-2">
-                  <h2 className="text-sm font-bold text-gray-400 tracking-widest uppercase flex items-center gap-2">
-                    <FileJson size={16} className="text-emerald-500" /> Data Ingestion
+                  <h2 className="text-lg font-bold text-gray-200 tracking-widest uppercase flex items-center gap-2">
+                    <FileJson size={20} className="text-emerald-500" /> Data Ingestion
                   </h2>
-                  {hasActiveResults && <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full font-bold tracking-widest uppercase border border-emerald-500/20 flex items-center gap-1.5"><Check size={10} /> Matrix Active</span>}
+                  {hasActiveResults && (
+                    <button onClick={() => setShowUploadModal(false)} className="text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 px-4 py-1.5 rounded-full text-xs font-bold uppercase transition-all border border-white/10 shadow-inner">Close</button>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
@@ -255,86 +441,11 @@ export default function App() {
                     <FileUploadZone key={fileConfig.id} id={fileConfig.id} name={fileConfig.name} file={files[fileConfig.id]} setFile={handleSetFile} />
                   ))}
                 </div>
-                <button onClick={handleProcess} disabled={isProcessing} className="w-full py-4 rounded-2xl bg-gradient-to-r from-cyan-600 to-emerald-600 font-bold hover:from-cyan-500 hover:to-emerald-500 shadow-lg shadow-cyan-900/10 hover:shadow-cyan-500/20 hover:-translate-y-0.5 transition-all active:translate-y-0 active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2">
-                  {isProcessing ? 'Compiling...' : (hasActiveResults ? <><ArrowRightLeft size={18} /> Update Analysis</> : 'Analyze Selection')}
+                <button onClick={handleProcess} disabled={isProcessing} className="w-full py-4 rounded-2xl bg-gradient-to-r from-cyan-600 to-emerald-600 font-bold hover:from-cyan-500 hover:to-emerald-500 shadow-lg shadow-cyan-900/10 hover:shadow-cyan-500/20 hover:-translate-y-0.5 transition-all active:translate-y-0 active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2 text-lg">
+                  {isProcessing ? 'Compiling...' : (hasActiveResults ? <><ArrowRightLeft size={20} /> Update Analysis</> : 'Analyze Selection')}
                 </button>
-              </motion.div>
-
-              {hasActiveResults && (
-                <div className="space-y-6">
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/10 p-2 rounded-3xl border border-white/20 sticky top-4 z-40 backdrop-blur-3xl shadow-2xl shadow-black/50">
-                    <div className="flex p-1 bg-black/20 rounded-2xl overflow-x-auto custom-scrollbar border border-white/5 shadow-inner">
-                      <NavTab id="core" icon={<Users size={16} />} label="Core Network" active={activeTab} set={setActiveTab} />
-                      <NavTab id="history" icon={<History size={16} />} label="Time Machine" active={activeTab} set={setActiveTab} />
-                      <NavTab id="activity" icon={<Activity size={16} />} label="Activity Log" active={activeTab} set={setActiveTab} />
-                    </div>
-
-                    <div className="relative flex-1 max-w-sm shrink-0 group">
-                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-cyan-400 transition-colors" size={16} />
-                      <input
-                        type="text"
-                        placeholder={activeTab === 'activity' ? "Search by handle, year, or month..." : "Filter current view..."}
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value.toLowerCase())}
-                        className="w-full bg-black/20 border border-white/10 rounded-2xl pl-10 pr-4 py-2.5 outline-none focus:border-white/30 text-sm transition-all placeholder:text-gray-400 focus:bg-white/10 focus:shadow-inner text-white shadow-inner"
-                      />
-                    </div>
-                  </motion.div>
-
-                  <AnimatePresence mode="wait">
-                    {activeTab === 'core' && (
-                      <motion.div key="core" variants={containerVariants} initial="hidden" animate="show" exit="exit" className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <motion.div variants={itemVariants} className="h-full">
-                          {results.notFollowingBack ? <StandardCard title="Not Following Back" icon={UserMinus} data={results.notFollowingBack.filter(u => u.username.includes(searchTerm))} sort={sortConfig.notFollowingBack} onSort={() => cycleSort('notFollowingBack')} color="rose" links={userLinks} /> : <EmptyState icon={UserMinus} title="No Core Data" message="Upload Current Following & Followers to view this metric." color="rose" />}
-                        </motion.div>
-                        <motion.div variants={itemVariants} className="h-full">
-                          {results.fans ? <StandardCard title="Fans" icon={Star} data={results.fans.filter(u => u.username.includes(searchTerm))} sort={sortConfig.fans} onSort={() => cycleSort('fans')} color="cyan" links={userLinks} /> : <EmptyState icon={Star} title="No Core Data" message="Upload Current Following & Followers to view this metric." color="cyan" />}
-                        </motion.div>
-                        <motion.div variants={itemVariants} className="h-full">
-                          {results.mutuals ? <StandardCard title="Mutuals" icon={UserCheck} data={results.mutuals.filter(u => u.username.includes(searchTerm))} sort={sortConfig.mutuals} onSort={() => cycleSort('mutuals')} color="emerald" links={userLinks} /> : <EmptyState icon={UserCheck} title="No Core Data" message="Upload Current Following & Followers to view this metric." color="emerald" />}
-                        </motion.div>
-                      </motion.div>
-                    )}
-
-                    {activeTab === 'history' && (
-                      <motion.div key="history" variants={containerVariants} initial="hidden" animate="show" exit="exit" className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-                        <motion.div variants={itemVariants} className="h-full">
-                          {results.stillConnected ? <StandardCard title="Still Connected" icon={LinkIcon} data={results.stillConnected.filter(u => u.username.includes(searchTerm))} sort={sortConfig.stillConnected} onSort={() => cycleSort('stillConnected')} color="teal" links={userLinks} /> : <EmptyState icon={LinkIcon} title="No Historical Data" message="Upload Old & Current files to track network stability." color="teal" />}
-                        </motion.div>
-                        <motion.div variants={itemVariants} className="h-full">
-                          {results.disconnected ? <StandardCard title="Disconnected" icon={Unlink} data={results.disconnected.filter(u => u.username.includes(searchTerm))} sort={sortConfig.disconnected} onSort={() => cycleSort('disconnected')} color="orange" links={userLinks} /> : <EmptyState icon={Unlink} title="No Historical Data" message="Upload Old & Current files to track account drift." color="orange" />}
-                        </motion.div>
-                      </motion.div>
-                    )}
-
-                    {activeTab === 'activity' && (
-                      <motion.div key="activity" variants={containerVariants} initial="hidden" animate="show" exit="exit" className="flex flex-wrap gap-6 justify-center items-start">
-                        {results.pending && (
-                          <motion.div variants={itemVariants} className="flex-1 min-w-[300px] max-w-lg">
-                            <GroupedPendingCard title="Pending Requests" icon={Send} data={results.pending} searchTerm={searchTerm} sort={sortConfig.pending} onSort={() => cycleSort('pending')} color="purple" links={userLinks} />
-                          </motion.div>
-                        )}
-                        {results.recentRequests && (
-                          <motion.div variants={itemVariants} className="flex-1 min-w-[300px] max-w-lg">
-                            <GroupedPendingCard title="Recent Follow Req." icon={Clock} data={results.recentRequests} searchTerm={searchTerm} sort={sortConfig.recentRequests} onSort={() => cycleSort('recentRequests')} color="cyan" links={userLinks} />
-                          </motion.div>
-                        )}
-                        {results.recentUnfollowed && (
-                          <motion.div variants={itemVariants} className="flex-1 min-w-[300px] max-w-lg">
-                            <GroupedPendingCard title="Recent Unfollowed" icon={UserMinus} data={results.recentUnfollowed} searchTerm={searchTerm} sort={sortConfig.recentUnfollowed} onSort={() => cycleSort('recentUnfollowed')} color="rose" links={userLinks} />
-                          </motion.div>
-                        )}
-                        {!results.pending && !results.recentRequests && !results.recentUnfollowed && (
-                          <motion.div variants={itemVariants} className="w-full max-w-2xl mx-auto">
-                            <EmptyState icon={Activity} title="No Activity Data" message="Upload Pending Requests, Recent Requests, or Recent Unfollowed JSON to view history." color="purple" />
-                          </motion.div>
-                        )}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              )}
-            </div>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -449,9 +560,12 @@ function FileUploadZone({ id, name, file, setFile }) {
 function NavTab({ id, icon, label, active, set }) {
   const isActive = active === id;
   return (
-    <button onClick={() => set(id)} className={`relative flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-colors whitespace-nowrap z-10 ${isActive ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}>
-      {isActive && <motion.div layoutId="activeTabIndicator" className="absolute inset-0 bg-white/10 rounded-lg -z-10" transition={{ type: "tween", ease: "easeInOut", duration: 0.2 }} />}
-      {icon} <span>{label}</span>
+    <button onClick={() => set(id)} className={`relative flex items-center p-3 rounded-xl text-sm font-bold transition-all whitespace-nowrap z-10 overflow-hidden ${isActive ? 'text-white' : 'text-gray-500 hover:text-white'}`}>
+      {isActive && <motion.div layoutId="activeTabIndicator" className="absolute inset-0 bg-white/10 rounded-xl -z-10 shadow-inner border border-white/10" transition={{ type: "tween", ease: "easeInOut", duration: 0.2 }} />}
+      <div className="flex-shrink-0 z-10 relative">{icon}</div>
+      <div className="max-w-0 opacity-0 overflow-hidden group-hover:max-w-[150px] group-hover:opacity-100 transition-all duration-300 ease-out flex-shrink-0 flex items-center">
+        <span className="pl-3">{label}</span>
+      </div>
     </button>
   );
 }
@@ -493,22 +607,25 @@ function StandardCard({ title, icon: Icon, data, sort, onSort, color, links }) {
     });
   }, [data, sort]);
 
-  const [scrollTop, setScrollTop] = useState(0);
-  const itemHeight = 60;
-  const containerHeight = 440;
-  const buffer = 5;
-
-  const handleScroll = (e) => setScrollTop(e.target.scrollTop);
-  const startIndex = Math.floor(scrollTop / itemHeight);
-  const endIndex = Math.min(sortedItems.length - 1, Math.floor((scrollTop + containerHeight) / itemHeight) + buffer);
-
-  const visibleItems = sortedItems.slice(Math.max(0, startIndex - buffer), endIndex + 1);
-  const paddingTop = Math.max(0, startIndex - buffer) * itemHeight;
-  const paddingBottom = Math.max(0, sortedItems.length - (endIndex + 1)) * itemHeight;
+  const renderRow = (item, index) => {
+    if (!item) return null;
+    return (
+      <div className="py-1 h-full">
+        <div className="flex justify-between items-center h-full bg-black/20 hover:bg-white/10 px-3.5 rounded-2xl border border-white/5 hover:border-white/20 hover:shadow-lg transition-all duration-300 ease-out group">
+          <a href={links[item.username] || `https://instagram.com/${item.username}`} target="_blank" rel="noopener noreferrer" className="text-sm font-medium tracking-tight text-gray-400 group-hover:text-white group-hover:translate-x-1 transform transition-all duration-200 truncate max-w-[70%]">
+            @{item.username}
+          </a>
+          <button onClick={() => navigator.clipboard.writeText(item.username)} className="opacity-0 group-hover:opacity-100 p-1.5 bg-white/5 hover:bg-white/10 active:scale-90 rounded-lg text-gray-400 hover:text-white transition-all shadow-sm border border-white/5">
+            <Copy size={13} />
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   return (
-    <div className={`border rounded-3xl p-5 h-[500px] flex flex-col transition-all duration-300 ease-out hover:-translate-y-1 ${styles[color]}`}>
-      <div className="mb-5 flex items-center justify-between pb-4 border-b border-white/5">
+    <div className={`border rounded-3xl p-5 h-full flex flex-col min-h-0 transition-all duration-300 ease-out hover:-translate-y-1 ${styles[color]}`}>
+      <div className="mb-5 flex items-center justify-between pb-4 border-b border-white/5 flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-xl bg-white/5 shadow-inner transition-transform duration-300 group-hover:scale-105"><Icon size={18} /></div>
           <div>
@@ -521,20 +638,17 @@ function StandardCard({ title, icon: Icon, data, sort, onSort, color, links }) {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar" onScroll={handleScroll}>
-        <div style={{ height: paddingTop }}></div>
-        {visibleItems.map((item) => (
-          <div key={item.username} className="flex justify-between items-center bg-black/20 hover:bg-white/10 p-3.5 mb-1.5 rounded-2xl border border-white/5 hover:border-white/20 hover:shadow-lg transition-all duration-300 ease-out group">
-            <a href={links[item.username] || `https://instagram.com/${item.username}`} target="_blank" rel="noopener noreferrer" className="text-sm font-medium tracking-tight text-gray-400 group-hover:text-white group-hover:translate-x-1 transform transition-all duration-200 truncate max-w-[70%]">
-              @{item.username}
-            </a>
-            <button onClick={() => navigator.clipboard.writeText(item.username)} className="opacity-0 group-hover:opacity-100 p-1.5 bg-white/5 hover:bg-white/10 active:scale-90 rounded-lg text-gray-400 hover:text-white transition-all shadow-sm border border-white/5">
-              <Copy size={13} />
-            </button>
-          </div>
-        ))}
-        <div style={{ height: paddingBottom }}></div>
-        {data.length === 0 && <div className="h-full flex flex-col items-center justify-center text-center p-6 opacity-30"><span className="text-sm font-medium text-white">List is empty</span></div>}
+      <div className="flex-1 overflow-hidden pr-2 min-h-0">
+        {data.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center text-center p-6 opacity-30"><span className="text-sm font-medium text-white">List is empty</span></div>
+        ) : (
+          <VirtualList
+            items={sortedItems}
+            itemHeight={60}
+            renderItem={renderRow}
+            className="custom-scrollbar pr-2"
+          />
+        )}
       </div>
     </div>
   );
@@ -548,11 +662,9 @@ function GroupedPendingCard({ title, icon: Icon, data, sort, onSort, color, link
 
   const getSortBadgeLabel = () => sort.type === 'alpha' ? (sort.dir === 'asc' ? 'A-Z' : 'Z-A') : (sort.dir === 'asc' ? 'Oldest First' : 'Newest First');
 
-  const groupedData = useMemo(() => {
-    // 1. Filter first
+  const { flattenedData, totalCount, stickyIndices } = useMemo(() => {
     const filtered = data.filter(item => item.searchString.includes(searchTerm));
 
-    // 2. Group by Date String
     const groups = filtered.reduce((acc, item) => {
       if (!acc[item.isoDate]) {
         acc[item.isoDate] = { prettyDate: item.prettyDate, timestamp: item.timestamp, items: [] };
@@ -561,14 +673,12 @@ function GroupedPendingCard({ title, icon: Icon, data, sort, onSort, color, link
       return acc;
     }, {});
 
-    // 3. Sort Group Headers (Time-based or Alpha)
     const sortedGroupKeys = Object.keys(groups).sort((a, b) => {
       const timeA = groups[a].timestamp;
       const timeB = groups[b].timestamp;
       return sort.type === 'time' && sort.dir === 'asc' ? timeA - timeB : timeB - timeA;
     });
 
-    // 4. Sort Items within the Groups
     sortedGroupKeys.forEach(key => {
       groups[key].items.sort((a, b) => {
         if (sort.type === 'alpha') return sort.dir === 'asc' ? a.username.localeCompare(b.username) : b.username.localeCompare(a.username);
@@ -576,20 +686,66 @@ function GroupedPendingCard({ title, icon: Icon, data, sort, onSort, color, link
       });
     });
 
-    return { keys: sortedGroupKeys, map: groups, totalCount: filtered.length };
+    const flat = [];
+    const stickyIndices = [];
+    sortedGroupKeys.forEach(key => {
+      const group = groups[key];
+      stickyIndices.push(flat.length);
+      flat.push({ type: 'header', prettyDate: group.prettyDate, count: group.items.length, dateKey: key });
+      group.items.forEach(item => {
+        flat.push({ type: 'item', ...item });
+      });
+    });
+
+    return { flattenedData: flat, totalCount: filtered.length, stickyIndices };
   }, [data, sort, searchTerm]);
 
+  const renderRow = (dataItem, index) => {
+    if (!dataItem) return null;
+
+    if (dataItem.type === 'header') {
+      return (
+        <div className="py-1 h-full">
+          <div className="bg-black/40 backdrop-blur-3xl h-full px-4 rounded-xl border border-white/10 flex justify-between items-center shadow-lg">
+            <div className="flex items-center gap-2">
+              <Calendar size={12} className="text-purple-500" />
+              <span className="text-xs font-bold text-purple-400 uppercase tracking-widest">{dataItem.prettyDate}</span>
+            </div>
+            <span className="text-[10px] text-gray-500 font-semibold bg-white/5 px-2 py-0.5 rounded-md">{dataItem.count} requests</span>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="py-1 h-full">
+        <div className="flex justify-between items-center h-full bg-black/20 hover:bg-white/10 px-4 rounded-2xl border border-white/5 hover:border-white/20 hover:shadow-lg transition-all duration-300 group">
+          <a href={links[dataItem.username] || `https://instagram.com/${dataItem.username}`} target="_blank" rel="noopener noreferrer" className="text-sm font-medium tracking-tight text-gray-400 group-hover:text-white group-hover:translate-x-1 transform transition-all duration-200 truncate max-w-[70%]">
+            @{dataItem.username}
+          </a>
+          <div className="flex items-center gap-2">
+            <div className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 px-2 py-1 rounded-md border ${dataItem.daysAgo > 180 ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-white/5 text-gray-400 border-white/10'}`}>
+              <Clock size={10} /> {dataItem.daysAgo}d
+            </div>
+            <button onClick={() => navigator.clipboard.writeText(dataItem.username)} className="opacity-0 group-hover:opacity-100 p-1.5 bg-white/5 hover:bg-white/10 active:scale-90 rounded-lg text-gray-400 hover:text-white transition-all border border-white/5">
+              <Copy size={13} />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className={`border rounded-3xl p-5 h-[650px] flex flex-col transition-all duration-300 ease-out hover:-translate-y-1 ${styles[color] || styles.purple}`}>
-      {/* Header Section */}
-      <div className="mb-5 flex items-center justify-between pb-4 border-b border-white/5">
+    <div className={`border rounded-3xl p-5 h-full flex flex-col min-h-0 transition-all duration-300 ease-out hover:-translate-y-1 ${styles[color] || styles.purple}`}>
+      <div className="mb-5 flex items-center justify-between pb-4 border-b border-white/5 flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-xl bg-white/5 shadow-inner transition-transform duration-300 hover:scale-105">
             <Icon size={18} />
           </div>
           <div>
             <span className="font-bold text-lg text-white tracking-tight block leading-none">{title}</span>
-            <span className="text-[11px] font-semibold text-gray-500 tracking-wider uppercase mt-1 block">{groupedData.totalCount} Total Requests</span>
+            <span className="text-[11px] font-semibold text-gray-500 tracking-wider uppercase mt-1 block">{totalCount} Total Requests</span>
           </div>
         </div>
         <button onClick={onSort} className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 active:scale-95 px-3 py-1.5 rounded-xl transition-all text-[10px] font-bold tracking-wider uppercase text-white shadow-inner border border-white/[0.02]">
@@ -597,43 +753,15 @@ function GroupedPendingCard({ title, icon: Icon, data, sort, onSort, color, link
         </button>
       </div>
 
-      {/* Scrollable Container */}
-      <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-        {groupedData.keys.length > 0 ? (
-          groupedData.keys.map(dateKey => {
-            const group = groupedData.map[dateKey];
-            return (
-              <div key={dateKey} className="mb-6 last:mb-0">
-                {/* Native Sticky Date Header */}
-                <div className="sticky top-0 z-10 bg-black/40 backdrop-blur-3xl py-3 px-2 mb-2 rounded-xl border border-white/10 flex justify-between items-center shadow-lg">
-                  <div className="flex items-center gap-2">
-                    <Calendar size={12} className="text-purple-500" />
-                    <span className="text-xs font-bold text-purple-400 uppercase tracking-widest">{group.prettyDate}</span>
-                  </div>
-                  <span className="text-[10px] text-gray-500 font-semibold bg-white/5 px-2 py-0.5 rounded-md">{group.items.length} requests</span>
-                </div>
-
-                {/* Items */}
-                <div className="space-y-1.5">
-                  {group.items.map(item => (
-                    <div key={item.username} className="flex justify-between items-center bg-black/20 hover:bg-white/10 p-3 rounded-2xl border border-white/5 hover:border-white/20 hover:shadow-lg transition-all duration-300 group">
-                      <a href={links[item.username] || `https://instagram.com/${item.username}`} target="_blank" rel="noopener noreferrer" className="text-sm font-medium tracking-tight text-gray-400 group-hover:text-white group-hover:translate-x-1 transform transition-all duration-200 truncate max-w-[70%]">
-                        @{item.username}
-                      </a>
-                      <div className="flex items-center gap-2">
-                        <div className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 px-2 py-1 rounded-md border ${item.daysAgo > 180 ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-white/5 text-gray-400 border-white/10'}`}>
-                          <Clock size={10} /> {item.daysAgo}d
-                        </div>
-                        <button onClick={() => navigator.clipboard.writeText(item.username)} className="opacity-0 group-hover:opacity-100 p-1.5 bg-white/5 hover:bg-white/10 active:scale-90 rounded-lg text-gray-400 hover:text-white transition-all border border-white/5">
-                          <Copy size={13} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })
+      <div className="flex-1 overflow-hidden pr-2 min-h-0">
+        {flattenedData.length > 0 ? (
+          <VirtualList
+            items={flattenedData}
+            itemHeight={64}
+            renderItem={renderRow}
+            className="custom-scrollbar pr-2"
+            stickyIndices={stickyIndices}
+          />
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-center p-6 opacity-30">
             <Calendar size={32} className="mb-4 opacity-50" />
