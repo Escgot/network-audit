@@ -84,7 +84,8 @@ export default function App() {
   const [files, setFiles] = useState({
     currFollowing: null, currFollowers: null,
     oldFollowing: null, oldFollowers: null,
-    pending: null, recentRequests: null, recentUnfollowed: null
+    pending: null, recentRequests: null, recentUnfollowed: null,
+    compOldFollowing: null, compNewFollowing: null
   });
 
   const [results, setResults] = useState(null);
@@ -104,7 +105,10 @@ export default function App() {
     disconnected: { type: 'alpha', dir: 'asc' },
     pending: { type: 'time', dir: 'desc' },
     recentRequests: { type: 'time', dir: 'desc' },
-    recentUnfollowed: { type: 'time', dir: 'desc' }
+    recentUnfollowed: { type: 'time', dir: 'desc' },
+    compCommon: { type: 'alpha', dir: 'asc' },
+    compOnlyOld: { type: 'alpha', dir: 'asc' },
+    compOnlyNew: { type: 'alpha', dir: 'asc' }
   });
 
   const triggerToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
@@ -245,15 +249,29 @@ export default function App() {
         outResults.recentUnfollowed = parseTemporalJsonFile(await loadJson(files.recentUnfollowed));
       }
 
+      const compOldFile = files.compOldFollowing || files.oldFollowing;
+      const compNewFile = files.compNewFollowing || files.currFollowing;
+      if (compOldFile && compNewFile) {
+        const compOldList = parseJsonFile(await loadJson(compOldFile), 'following');
+        const compNewList = parseJsonFile(await loadJson(compNewFile), 'following');
+        const compOldSet = new Set(compOldList.map(u => u.username));
+        const compNewSet = new Set(compNewList.map(u => u.username));
+        outResults.compCommon = compNewList.filter(u => compOldSet.has(u.username));
+        outResults.compOnlyOld = compOldList.filter(u => !compNewSet.has(u.username));
+        outResults.compOnlyNew = compNewList.filter(u => !compOldSet.has(u.username));
+      }
+
       setResults(outResults);
 
       const hasCore = files.currFollowing && files.currFollowers;
       const hasHistory = files.oldFollowing || files.oldFollowers;
       const hasActivity = files.pending || files.recentRequests || files.recentUnfollowed;
+      const hasComparison = files.compOldFollowing || files.compNewFollowing;
 
-      if (hasCore && !hasHistory && !hasActivity) setActiveTab('core');
-      else if (hasHistory && !hasCore && !hasActivity) setActiveTab('history');
-      else if (hasActivity && !hasCore && !hasHistory) setActiveTab('activity');
+      if (hasCore && !hasHistory && !hasActivity && !hasComparison) setActiveTab('core');
+      else if (hasHistory && !hasCore && !hasActivity && !hasComparison) setActiveTab('history');
+      else if (hasActivity && !hasCore && !hasHistory && !hasComparison) setActiveTab('activity');
+      else if (hasComparison && !hasCore && !hasHistory && !hasActivity) setActiveTab('comparison');
 
       triggerToast('Network matrix updated successfully!');
       setShowUploadModal(false);
@@ -377,6 +395,19 @@ export default function App() {
                         )}
                       </motion.div>
                     )}
+{activeTab === 'comparison' && (
+                      <motion.div key="comparison" variants={containerVariants} initial="hidden" animate="show" exit="exit" className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 min-h-0">
+                        <motion.div variants={itemVariants} className="h-full min-h-0 flex flex-col">
+                          {results.compCommon ? <StandardCard title="Common" icon={LinkIcon} data={results.compCommon.filter(u => u.username.includes(searchTerm))} sort={sortConfig.compCommon} onSort={() => cycleSort('compCommon')} color="emerald" links={userLinks} /> : <EmptyState icon={LinkIcon} title="No Comparison Data" message="Upload two Following files to find shared usernames." color="emerald" />}
+                        </motion.div>
+                        <motion.div variants={itemVariants} className="h-full min-h-0 flex flex-col">
+                          {results.compOnlyOld ? <StandardCard title="Only in Old" icon={History} data={results.compOnlyOld.filter(u => u.username.includes(searchTerm))} sort={sortConfig.compOnlyOld} onSort={() => cycleSort('compOnlyOld')} color="orange" links={userLinks} /> : <EmptyState icon={History} title="No Comparison Data" message="Upload two Following files to find old-only usernames." color="orange" />}
+                        </motion.div>
+                        <motion.div variants={itemVariants} className="h-full min-h-0 flex flex-col">
+                          {results.compOnlyNew ? <StandardCard title="Only in New" icon={Zap} data={results.compOnlyNew.filter(u => u.username.includes(searchTerm))} sort={sortConfig.compOnlyNew} onSort={() => cycleSort('compOnlyNew')} color="cyan" links={userLinks} /> : <EmptyState icon={Zap} title="No Comparison Data" message="Upload two Following files to find new-only usernames." color="cyan" />}
+                        </motion.div>
+                      </motion.div>
+                    )}
                   </AnimatePresence>
                 </div>
               )}
@@ -399,6 +430,7 @@ export default function App() {
                 <NavTab id="core" icon={<Users size={20} />} label="Core Network" active={!showUploadModal ? activeTab : null} set={(id) => { setActiveTab(id); setShowUploadModal(false); }} />
                 <NavTab id="history" icon={<History size={20} />} label="Time Machine" active={!showUploadModal ? activeTab : null} set={(id) => { setActiveTab(id); setShowUploadModal(false); }} />
                 <NavTab id="activity" icon={<Activity size={20} />} label="Activity Log" active={!showUploadModal ? activeTab : null} set={(id) => { setActiveTab(id); setShowUploadModal(false); }} />
+                <NavTab id="comparison" icon={<ArrowRightLeft size={20} />} label="Comparison" active={!showUploadModal ? activeTab : null} set={(id) => { setActiveTab(id); setShowUploadModal(false); }} />
               </>
             )}
           </motion.div>
@@ -437,6 +469,22 @@ export default function App() {
                     { id: 'pending', name: 'Pending Req' },
                     { id: 'recentRequests', name: 'Recent Req' },
                     { id: 'recentUnfollowed', name: 'Recent Unfollowed' },
+                  ].map((fileConfig) => (
+                    <FileUploadZone key={fileConfig.id} id={fileConfig.id} name={fileConfig.name} file={files[fileConfig.id]} setFile={handleSetFile} />
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <span className="h-px flex-1 bg-white/10" />
+                  <span className="text-xs font-bold tracking-widest uppercase text-cyan-300 flex items-center gap-2"><ArrowRightLeft size={14} /> Following Comparison</span>
+                  <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">(independent, old vs new)</span>
+                  <span className="h-px flex-1 bg-white/10" />
+                </div>
+
+                <div className="grid grid-cols-2 lg:grid-cols-7 gap-3">
+                  {[
+                    { id: 'compOldFollowing', name: 'Comp. Old Following' },
+                    { id: 'compNewFollowing', name: 'Comp. New Following' },
                   ].map((fileConfig) => (
                     <FileUploadZone key={fileConfig.id} id={fileConfig.id} name={fileConfig.name} file={files[fileConfig.id]} setFile={handleSetFile} />
                   ))}
