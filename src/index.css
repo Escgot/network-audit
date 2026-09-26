@@ -1,6 +1,5 @@
 @import "tailwindcss";
 
-/* In v4, custom theme colors go here instead of a javascript config file */
 @theme {
   --color-dark-bg: #050505;
   --font-sans: "Inter", "system-ui", "sans-serif";
@@ -9,6 +8,8 @@
 body {
   background-color: var(--color-dark-bg);
   color: #ffffff;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 @keyframes gradient {
@@ -20,4 +21,35 @@ body {
 .animate-gradient {
   background-size: 200% 200%;
   animation: gradient 15s ease infinite;
+}
+
+/* Custom scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Selection */
+::selection {
+  background: rgba(6, 182, 212, 0.3);
+}
+
+/* Hide number input arrows */
+.no-spinners::-webkit-inner-spin-button, 
+.no-spinners::-webkit-outer-spin-button { 
+  -webkit-appearance: none; 
+  margin: 0; 
+}
+.no-spinners {
+  -moz-appearance: textfield;
 }
