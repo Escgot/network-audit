@@ -6,6 +6,7 @@ Network Intelligence is a high-performance, privacy-first tool for auditing your
 
 * **Core Analysis**: Split your network into "Not Following Back," "Fans," and "Mutuals" using current Following & Followers data.
 * **Time Machine (History)**: Compare old and current exports to track "Still Connected" accounts and "Disconnected" users (unfollowed, unfollowed-you, or deactivated).
+* **Following vs CSVs Comparison**: Compare an Instagram Following JSON export against two merged CSV files to isolate differences ("Only in Following", "Only in CSVs", and "All Differences").
 * **Activity Log**: Grouped-by-date views for Pending Requests, Recent Follow Requests, and Recent Unfollowed, with stale-request highlighting (180+ days flagged).
 * **Intelligent Sorting**: Toggle between alphabetical (A-Z / Z-A) and chronological (Oldest / Newest) sorting on every category.
 * **Instant Search**: Filter thousands of usernames across any view; activity views also match by year or month.

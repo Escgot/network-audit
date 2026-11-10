@@ -3,7 +3,7 @@ import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import {
   Upload, Search, Check, Copy, Clock, ArrowUpDown, ArrowRightLeft,
   Users, History, Send, UserMinus, Star, UserCheck, Link as LinkIcon, Unlink, FileJson, Calendar, Activity,
-  ChevronRight, ShieldCheck, BarChart3, Zap, X, ExternalLink
+  ChevronRight, ShieldCheck, BarChart3, Zap, X, ExternalLink, FileSpreadsheet
 } from 'lucide-react';
 import AppLogo from './assets/logo.png';
 import { getGender } from 'gender-detection-from-name';
@@ -254,7 +254,8 @@ export default function App() {
     oldFollowing: [], oldFollowers: [],
     pending: [], recentRequests: [], recentUnfollowed: [],
     compOldFollowing: [], compNewFollowing: [],
-    compOldFollowers: [], compNewFollowers: []
+    compOldFollowers: [], compNewFollowers: [],
+    compCsvFollowing: [], compCsvFile1: [], compCsvFile2: [], compCsvFile: []
   });
 
   const [results, setResults] = useState(null);
@@ -280,7 +281,13 @@ export default function App() {
     compOnlyNew: { type: 'alpha', dir: 'asc' },
     compFolCommon: { type: 'alpha', dir: 'asc' },
     compFolOnlyOld: { type: 'alpha', dir: 'asc' },
-    compFolOnlyNew: { type: 'alpha', dir: 'asc' }
+    compFolOnlyNew: { type: 'alpha', dir: 'asc' },
+    compCsvOnlyFollowing: { type: 'alpha', dir: 'asc' },
+    compCsvOnlyCsv: { type: 'alpha', dir: 'asc' },
+    compCsvDiffAll: { type: 'alpha', dir: 'asc' },
+    compCsvCommon: { type: 'alpha', dir: 'asc' },
+    compCsvAllCsv: { type: 'alpha', dir: 'asc' },
+    compCsvAllFollowing: { type: 'alpha', dir: 'asc' }
   });
 
   const triggerToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
@@ -313,29 +320,244 @@ export default function App() {
     let rawList = [];
     if (Array.isArray(data)) {
       rawList = data;
-    } else {
-      rawList = data.relationships_following ||
-        data.relationships_followers ||
-        data.followers ||
-        data.following ||
-        [];
+    } else if (data && typeof data === 'object') {
+      if (Array.isArray(data.relationships_following)) {
+        rawList = data.relationships_following;
+      } else if (Array.isArray(data.following)) {
+        rawList = data.following;
+      } else if (Array.isArray(data.relationships_followers)) {
+        rawList = data.relationships_followers;
+      } else if (Array.isArray(data.followers)) {
+        rawList = data.followers;
+      } else {
+        // Collect arrays from all top-level keys if not in standard format
+        for (const key of Object.keys(data)) {
+          if (Array.isArray(data[key])) {
+            rawList = rawList.concat(data[key]);
+          }
+        }
+      }
     }
 
-    const items = rawList.map((item, idx) => {
-      let username = (item.title || item.string_list_data?.[0]?.value);
-      if (username) {
-        username = username.toLowerCase().trim();
+    const extractInstagramUsername = (item) => {
+      if (!item) return { username: null, href: '#' };
+      if (typeof item === 'string') {
+        const u = item.replace(/^@/, '').trim().toLowerCase();
+        return { username: u || null, href: u ? `https://instagram.com/${u}` : '#' };
+      }
+      if (typeof item !== 'object') return { username: null, href: '#' };
+
+      let username = null;
+      let href = null;
+
+      // 1. Check all elements in string_list_data (official Instagram format)
+      if (Array.isArray(item.string_list_data)) {
+        for (const s of item.string_list_data) {
+          if (!s) continue;
+          if (s.value && typeof s.value === 'string' && s.value.trim()) {
+            username = s.value;
+          }
+          if (s.href && typeof s.href === 'string' && s.href.trim()) {
+            href = s.href;
+            if (!username) {
+              const m = s.href.match(/instagram\.com\/(?:_u\/)?([a-zA-Z0-9._]+)/i);
+              if (m && !['p', 'reel', 'reels', 'stories', 'explore', 'direct', 'tv'].includes(m[1].toLowerCase())) {
+                username = m[1];
+              }
+            }
+          }
+          if (username) break;
+        }
       }
 
-      const href = item.string_list_data?.[0]?.href || '#';
-      if (username) tempLinks[username] = href;
+      // 2. Check direct username / value fields
+      if (!username && item.username && typeof item.username === 'string' && item.username.trim()) {
+        username = item.username;
+      }
+      if (!username && item.value && typeof item.value === 'string' && item.value.trim()) {
+        username = item.value;
+      }
 
+      // 3. Check item.href
+      if (!username && item.href && typeof item.href === 'string' && item.href.trim()) {
+        href = item.href;
+        const m = item.href.match(/instagram\.com\/(?:_u\/)?([a-zA-Z0-9._]+)/i);
+        if (m && !['p', 'reel', 'reels', 'stories', 'explore', 'direct', 'tv'].includes(m[1].toLowerCase())) {
+          username = m[1];
+        }
+      }
+
+      // 4. Check item.title
+      if (!username && item.title && typeof item.title === 'string' && item.title.trim()) {
+        const t = item.title.trim();
+        if (!/^instagram user$/i.test(t)) {
+          username = t;
+        }
+      }
+
+      if (username) {
+        username = String(username).replace(/^@/, '').toLowerCase().trim();
+      }
+
+      if (!href) {
+        href = username ? `https://instagram.com/${username}` : '#';
+      }
+
+      return { username, href };
+    };
+
+    const items = rawList.map((item, idx) => {
+      const { username, href } = extractInstagramUsername(item);
+      if (username) tempLinks[username] = href;
       const gender = detectGender(username);
       return username ? { username, href, fileIndex: idx, gender } : null;
     }).filter(Boolean);
 
     setUserLinks(prev => ({ ...prev, ...tempLinks }));
     return items;
+  };
+
+  const parseCsvText = (text) => {
+    if (!text || typeof text !== 'string') return [];
+    // Strip UTF-8 BOM
+    text = text.replace(/^\uFEFF/, '').trim();
+    if (!text) return [];
+
+    // Split lines across Windows (\r\n), Classic Mac (\r), or Unix (\n)
+    const rawLines = text.split(/\r\n|\r|\n/).map(l => l.trim()).filter(Boolean);
+    if (rawLines.length === 0) return [];
+
+    // Delimiter detection across sample lines
+    const sample = rawLines.slice(0, Math.min(10, rawLines.length)).join('\n');
+    const countChar = (str, char) => (str.match(new RegExp('\\' + char, 'g')) || []).length;
+    const delimiters = [',', ';', '\t', '|'];
+    let delimiter = ',';
+    let maxCount = -1;
+    for (const d of delimiters) {
+      const c = countChar(sample, d);
+      if (c > maxCount) {
+        maxCount = c;
+        delimiter = d;
+      }
+    }
+    if (maxCount === 0) delimiter = ',';
+
+    const splitLine = (line) => {
+      const cols = [];
+      let cur = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+          if (inQuotes && line[i + 1] === '"') {
+            cur += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (char === delimiter && !inQuotes) {
+          cols.push(cur.trim());
+          cur = '';
+        } else {
+          cur += char;
+        }
+      }
+      cols.push(cur.trim());
+      return cols;
+    };
+
+    const rows = rawLines.map(splitLine);
+    if (rows.length === 0) return [];
+
+    const cleanVal = (val) => {
+      if (!val) return '';
+      let s = val.replace(/^["']|["']$/g, '').trim();
+      if (s.includes('instagram.com/')) {
+        const m = s.match(/instagram\.com\/(?:_u\/)?([a-zA-Z0-9._]+)/i);
+        if (m && !['p', 'reel', 'reels', 'stories', 'explore', 'direct', 'tv'].includes(m[1].toLowerCase())) {
+          s = m[1];
+        }
+      }
+      s = s.replace(/^@/, '').trim().toLowerCase();
+      return s;
+    };
+
+    const isUsernameLike = (val) => {
+      if (!val) return false;
+      const clean = cleanVal(val);
+      if (!clean) return false;
+      if (/^(username|user|handle|account|instagram|ig|name|profile|id|index|link|url|user_id|userid|full_name|fullname|bio)$/i.test(clean)) return false;
+      return /^[a-zA-Z0-9._]{1,35}$/.test(clean);
+    };
+
+    // Find best column
+    const firstRow = rows[0];
+    let targetColIdx = 0;
+    let startIndex = 0;
+
+    const headerIdx = firstRow.findIndex(col => {
+      const c = col.replace(/^["']|["']$/g, '').trim().toLowerCase();
+      return /^(username|user|user_name|user name|handle|account|instagram|ig|profile|account name|ig username)$/i.test(c);
+    });
+
+    if (headerIdx !== -1) {
+      targetColIdx = headerIdx;
+      startIndex = 1;
+    } else {
+      const partialIdx = firstRow.findIndex(col => {
+        const c = col.replace(/^["']|["']$/g, '').trim().toLowerCase();
+        return /username|handle|account/i.test(c) && !/id|number|count/i.test(c);
+      });
+      if (partialIdx !== -1) {
+        targetColIdx = partialIdx;
+        startIndex = 1;
+      } else {
+        const numCols = Math.max(...rows.slice(0, 10).map(r => r.length));
+        const colScores = new Array(numCols).fill(0);
+        for (let r = 0; r < Math.min(10, rows.length); r++) {
+          for (let c = 0; c < rows[r].length; c++) {
+            if (isUsernameLike(rows[r][c])) colScores[c]++;
+          }
+        }
+        let bestCol = 0;
+        let bestScore = -1;
+        for (let c = 0; c < colScores.length; c++) {
+          if (colScores[c] > bestScore) {
+            bestScore = colScores[c];
+            bestCol = c;
+          }
+        }
+        targetColIdx = bestCol;
+        if (!isUsernameLike(firstRow[targetColIdx])) {
+          startIndex = 1;
+        }
+      }
+    }
+
+    const list = [];
+    const seen = new Set();
+
+    for (let i = startIndex; i < rows.length; i++) {
+      const row = rows[i];
+      let val = cleanVal(row[targetColIdx]);
+      if (!val || !isUsernameLike(val)) {
+        for (let c = 0; c < row.length; c++) {
+          if (c !== targetColIdx) {
+            const alt = cleanVal(row[c]);
+            if (alt && isUsernameLike(alt)) {
+              val = alt;
+              break;
+            }
+          }
+        }
+      }
+      if (val && isUsernameLike(val) && !seen.has(val)) {
+        seen.add(val);
+        list.push(val);
+      }
+    }
+
+    return list;
   };
 
   const parseTemporalJsonFile = (data) => {
@@ -369,14 +591,54 @@ export default function App() {
       reader.readAsText(file);
     });
 
+    const loadText = (file) => new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result);
+      reader.readAsText(file);
+    });
+
+    const processCsvFiles = async (fileArray) => {
+      if (!fileArray || fileArray.length === 0) return null;
+      const tempLinks = {};
+      let allUsernames = [];
+      for (const file of fileArray) {
+        const text = await loadText(file);
+        const parsedUsernames = parseCsvText(text);
+        allUsernames = allUsernames.concat(parsedUsernames);
+      }
+      const uniqueUsernames = Array.from(new Set(allUsernames));
+      const items = uniqueUsernames.map((username, idx) => {
+        const href = `https://instagram.com/${username}`;
+        tempLinks[username] = href;
+        const gender = detectGender(username);
+        return { username, href, fileIndex: idx, gender };
+      });
+      setUserLinks(prev => ({ ...prev, ...tempLinks }));
+      return items;
+    };
+
     const processFiles = async (fileArray, type, isTemporal = false) => {
       if (!fileArray || fileArray.length === 0) return null;
       let allItems = [];
+      const tempLinks = {};
       for (const file of fileArray) {
-        const data = await loadJson(file);
-        const parsed = isTemporal ? parseTemporalJsonFile(data) : parseJsonFile(data, type);
-        allItems = allItems.concat(parsed);
+        const isCsv = file.name && (file.name.toLowerCase().endsWith('.csv') || file.name.toLowerCase().endsWith('.txt'));
+        if (isCsv) {
+          const text = await loadText(file);
+          const parsedUsernames = parseCsvText(text);
+          parsedUsernames.forEach((username, idx) => {
+            const href = `https://instagram.com/${username}`;
+            tempLinks[username] = href;
+            const gender = detectGender(username);
+            allItems.push({ username, href, fileIndex: idx, gender });
+          });
+        } else {
+          const data = await loadJson(file);
+          const parsed = isTemporal ? parseTemporalJsonFile(data) : parseJsonFile(data, type);
+          allItems = allItems.concat(parsed);
+        }
       }
+      setUserLinks(prev => ({ ...prev, ...tempLinks }));
       const uniqueMap = new Map();
       for (const item of allItems) {
         if (item && item.username && !uniqueMap.has(item.username)) {
@@ -458,6 +720,111 @@ export default function App() {
           outResults.compFolOnlyNew = compNewFolList.filter(u => !compOldFolSet.has(u.username));
         }
 
+        // Following JSON vs Merged CSVs comparison
+        const compCsvFollowingFile = files.compCsvFollowing?.length ? files.compCsvFollowing : (files.currFollowing?.length ? files.currFollowing : files.compNewFollowing);
+        const allCsvFiles = [
+          ...(files.compCsvFile1 || []),
+          ...(files.compCsvFile2 || []),
+          ...(files.compCsvFile || [])
+        ];
+
+        if (allCsvFiles.length > 0) {
+          if (!compCsvFollowingFile?.length) {
+            triggerToast('Upload a Following JSON file to compare with your CSV files.');
+          } else {
+            const compFollowingList = await processFiles(compCsvFollowingFile, 'following');
+            const compCsvList = await processFiles(allCsvFiles, 'followers');
+            if (compFollowingList && compCsvList) {
+              // Build index maps from CSV list for symbol-insensitive matching
+              const csvExactSet = new Set(compCsvList.map(u => u.username));
+              const csvTrimmedMap = new Map();
+              const csvNormMap = new Map();
+
+              compCsvList.forEach(item => {
+                const u = item.username;
+                const trimmed = u.replace(/^[._]+|[._]+$/g, '');
+                const norm = u.replace(/[._]/g, '');
+                if (trimmed && !csvTrimmedMap.has(trimmed)) csvTrimmedMap.set(trimmed, item);
+                if (norm && norm.length >= 3 && !csvNormMap.has(norm)) csvNormMap.set(norm, item);
+              });
+
+              // Helper to check if a Following username exists in CSVs
+              const matchInCsv = (fUser) => {
+                if (csvExactSet.has(fUser)) return { matched: true, matchType: 'exact', target: fUser };
+                const trimmed = fUser.replace(/^[._]+|[._]+$/g, '');
+                if (trimmed && csvTrimmedMap.has(trimmed)) {
+                  return { matched: true, matchType: 'trimmed', target: csvTrimmedMap.get(trimmed).username };
+                }
+                const norm = fUser.replace(/[._]/g, '');
+                if (norm && norm.length >= 3 && csvNormMap.has(norm)) {
+                  return { matched: true, matchType: 'norm', target: csvNormMap.get(norm).username };
+                }
+                return { matched: false };
+              };
+
+              // Build index maps from Following list for reverse matching
+              const followingExactSet = new Set(compFollowingList.map(u => u.username));
+              const followingTrimmedMap = new Map();
+              const followingNormMap = new Map();
+
+              compFollowingList.forEach(item => {
+                const u = item.username;
+                const trimmed = u.replace(/^[._]+|[._]+$/g, '');
+                const norm = u.replace(/[._]/g, '');
+                if (trimmed && !followingTrimmedMap.has(trimmed)) followingTrimmedMap.set(trimmed, item);
+                if (norm && norm.length >= 3 && !followingNormMap.has(norm)) followingNormMap.set(norm, item);
+              });
+
+              // Helper to check if a CSV username exists in Following
+              const matchInFollowing = (cUser) => {
+                if (followingExactSet.has(cUser)) return { matched: true, matchType: 'exact', target: cUser };
+                const trimmed = cUser.replace(/^[._]+|[._]+$/g, '');
+                if (trimmed && followingTrimmedMap.has(trimmed)) {
+                  return { matched: true, matchType: 'trimmed', target: followingTrimmedMap.get(trimmed).username };
+                }
+                const norm = cUser.replace(/[._]/g, '');
+                if (norm && norm.length >= 3 && followingNormMap.has(norm)) {
+                  return { matched: true, matchType: 'norm', target: followingNormMap.get(norm).username };
+                }
+                return { matched: false };
+              };
+
+              const onlyFollowing = [];
+              const common = [];
+
+              compFollowingList.forEach(item => {
+                const match = matchInCsv(item.username);
+                if (match.matched) {
+                  common.push({
+                    ...item,
+                    matchedWith: match.matchType !== 'exact' ? match.target : undefined
+                  });
+                } else {
+                  onlyFollowing.push(item);
+                }
+              });
+
+              const onlyCsv = [];
+              compCsvList.forEach(item => {
+                const match = matchInFollowing(item.username);
+                if (!match.matched) {
+                  onlyCsv.push(item);
+                }
+              });
+
+              outResults.compCsvOnlyFollowing = onlyFollowing;
+              outResults.compCsvOnlyCsv = onlyCsv;
+              outResults.compCsvDiffAll = [
+                ...onlyFollowing,
+                ...onlyCsv
+              ];
+              outResults.compCsvCommon = common;
+              outResults.compCsvAllCsv = compCsvList;
+              outResults.compCsvAllFollowing = compFollowingList;
+            }
+          }
+        }
+
         setResults(outResults);
 
         const hasCore = files.currFollowing?.length > 0 && files.currFollowers?.length > 0;
@@ -465,12 +832,14 @@ export default function App() {
         const hasActivity = files.pending?.length > 0 || files.recentRequests?.length > 0 || files.recentUnfollowed?.length > 0;
         const hasComparison = files.compOldFollowing?.length > 0 || files.compNewFollowing?.length > 0;
         const hasFollowersComparison = files.compOldFollowers?.length > 0 || files.compNewFollowers?.length > 0;
+        const hasCsvComparison = allCsvFiles.length > 0 && compCsvFollowingFile?.length > 0;
 
-        if (hasCore && !hasHistory && !hasActivity && !hasComparison && !hasFollowersComparison) setActiveTab('core');
-        else if (hasHistory && !hasCore && !hasActivity && !hasComparison && !hasFollowersComparison) setActiveTab('history');
-        else if (hasActivity && !hasCore && !hasHistory && !hasComparison && !hasFollowersComparison) setActiveTab('activity');
-        else if (hasComparison && !hasCore && !hasHistory && !hasActivity && !hasFollowersComparison) setActiveTab('comparison');
-        else if (hasFollowersComparison && !hasCore && !hasHistory && !hasActivity && !hasComparison) setActiveTab('followersComparison');
+        if (hasCore && !hasHistory && !hasActivity && !hasComparison && !hasFollowersComparison && !hasCsvComparison) setActiveTab('core');
+        else if (hasHistory && !hasCore && !hasActivity && !hasComparison && !hasFollowersComparison && !hasCsvComparison) setActiveTab('history');
+        else if (hasActivity && !hasCore && !hasHistory && !hasComparison && !hasFollowersComparison && !hasCsvComparison) setActiveTab('activity');
+        else if (hasComparison && !hasCore && !hasHistory && !hasActivity && !hasFollowersComparison && !hasCsvComparison) setActiveTab('comparison');
+        else if (hasFollowersComparison && !hasCore && !hasHistory && !hasActivity && !hasComparison && !hasCsvComparison) setActiveTab('followersComparison');
+        else if (hasCsvComparison) setActiveTab('csvComparison');
 
       triggerToast('Network matrix updated successfully!');
       setShowUploadModal(false);
@@ -540,6 +909,7 @@ export default function App() {
                     { id: 'activity', icon: Activity, label: 'Activity' },
                     { id: 'comparison', icon: ArrowRightLeft, label: 'Following Diff' },
                     { id: 'followersComparison', icon: UserCheck, label: 'Followers Diff' },
+                    { id: 'csvComparison', icon: FileSpreadsheet, label: 'Following vs CSVs' },
                   ].map(tab => {
                     const isActive = activeTab === tab.id && !showUploadModal;
                     const TabIcon = tab.icon;
@@ -603,6 +973,16 @@ export default function App() {
                       { id: 'compFolCommon', title: 'Common', icon: UserCheck, data: results.compFolCommon, sort: sortConfig.compFolCommon, color: 'emerald' },
                       { id: 'compFolOnlyOld', title: 'Only in Old', icon: History, data: results.compFolOnlyOld, sort: sortConfig.compFolOnlyOld, color: 'orange' },
                       { id: 'compFolOnlyNew', title: 'Only in New', icon: Zap, data: results.compFolOnlyNew, sort: sortConfig.compFolOnlyNew, color: 'cyan' }
+                    ].filter(c => c.data)} searchTerm={searchTerm} onSearchChange={(v) => setSearchTerm(v.toLowerCase())} onCycleSort={cycleSort} links={userLinks} />
+                  )}
+                  {activeTab === 'csvComparison' && (
+                    <DataPanel key="csvComparison" categories={[
+                      { id: 'compCsvOnlyFollowing', title: 'Only in Following', icon: UserMinus, data: results.compCsvOnlyFollowing, sort: sortConfig.compCsvOnlyFollowing, color: 'rose' },
+                      { id: 'compCsvOnlyCsv', title: 'Only in CSVs', icon: Zap, data: results.compCsvOnlyCsv, sort: sortConfig.compCsvOnlyCsv, color: 'cyan' },
+                      { id: 'compCsvDiffAll', title: 'All Differences', icon: ArrowRightLeft, data: results.compCsvDiffAll, sort: sortConfig.compCsvDiffAll, color: 'orange' },
+                      { id: 'compCsvCommon', title: 'In Both (Common)', icon: LinkIcon, data: results.compCsvCommon, sort: sortConfig.compCsvCommon, color: 'emerald' },
+                      { id: 'compCsvAllCsv', title: 'All CSV Usernames', icon: FileSpreadsheet, data: results.compCsvAllCsv, sort: sortConfig.compCsvAllCsv, color: 'teal' },
+                      { id: 'compCsvAllFollowing', title: 'All Following (JSON)', icon: Users, data: results.compCsvAllFollowing, sort: sortConfig.compCsvAllFollowing, color: 'purple' }
                     ].filter(c => c.data)} searchTerm={searchTerm} onSearchChange={(v) => setSearchTerm(v.toLowerCase())} onCycleSort={cycleSort} links={userLinks} />
                   )}
                 </AnimatePresence>
@@ -702,6 +1082,15 @@ export default function App() {
                         </div>
                       </UploadSection>
 
+                      {/* Step 4: Following vs Merged CSVs */}
+                      <UploadSection step={4} title="Following vs CSVs Comparison" subtitle="Compare Following JSON vs Two Merged CSVs" color="purple">
+                        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-3">
+                          <FileUploadZone id="compCsvFollowing" name="Following (JSON)" file={files.compCsvFollowing} setFile={handleSetFile} accept=".json" fileTypeLabel="JSON" />
+                          <FileUploadZone id="compCsvFile1" name="Usernames (CSV 1)" file={files.compCsvFile1} setFile={handleSetFile} accept=".csv,.txt" fileTypeLabel="CSV 1" />
+                          <FileUploadZone id="compCsvFile2" name="Usernames (CSV 2)" file={files.compCsvFile2} setFile={handleSetFile} accept=".csv,.txt" fileTypeLabel="CSV 2" />
+                        </div>
+                      </UploadSection>
+
                       {/* Analyze button */}
                       <button onClick={handleProcess} disabled={isProcessing}
                         className="w-full py-4 rounded-2xl bg-gradient-to-r from-cyan-600 to-emerald-600 font-bold hover:from-cyan-500 hover:to-emerald-500 shadow-lg shadow-cyan-900/20 hover:shadow-cyan-500/20 hover:-translate-y-0.5 transition-all active:translate-y-0 active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2 text-lg"
@@ -773,7 +1162,8 @@ function FeatureCard({ icon: Icon, title, desc, color }) {
 function UploadSection({ step, title, subtitle, color, children }) {
   const colorMap = {
     cyan: 'bg-cyan-500/20 border-cyan-500/30 text-cyan-400',
-    emerald: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
+    emerald: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400',
+    purple: 'bg-purple-500/20 border-purple-500/30 text-purple-400'
   };
   return (
     <div className="space-y-3">
@@ -793,7 +1183,7 @@ function UploadSection({ step, title, subtitle, color, children }) {
 // ============================================================
 // FILE UPLOAD ZONE
 // ============================================================
-function FileUploadZone({ id, name, file, setFile }) {
+function FileUploadZone({ id, name, file, setFile, accept = ".json", fileTypeLabel = "JSON" }) {
   const [isDragging, setIsDragging] = useState(false);
   
   const hasFiles = file && file.length > 0;
@@ -830,7 +1220,7 @@ function FileUploadZone({ id, name, file, setFile }) {
           : 'border-white/10 bg-white/[0.03] hover:border-white/25 hover:bg-white/[0.06]'
         }`}
     >
-      <input type="file" multiple accept=".json" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" onChange={handleChange} />
+      <input type="file" multiple accept={accept} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" onChange={handleChange} />
       <div className="relative z-10 flex flex-col items-center justify-center gap-1">
         <AnimatePresence mode="wait">
           {hasFiles ? (
@@ -844,7 +1234,7 @@ function FileUploadZone({ id, name, file, setFile }) {
           )}
         </AnimatePresence>
         <span className={`font-bold text-[10px] uppercase tracking-wider text-center transition-colors ${hasFiles ? 'text-emerald-400' : isDragging ? 'text-cyan-300' : 'text-gray-400 group-hover:text-gray-200'}`}>{name}</span>
-        <span className={`text-[9px] truncate w-full px-1 text-center font-medium ${hasFiles ? 'text-emerald-500/70' : 'text-gray-600'}`}>{hasFiles ? (file.length === 1 ? file[0].name : `${file.length} files added`) : 'JSON'}</span>
+        <span className={`text-[9px] truncate w-full px-1 text-center font-medium ${hasFiles ? 'text-emerald-500/70' : 'text-gray-600'}`}>{hasFiles ? (file.length === 1 ? file[0].name : `${file.length} files added`) : fileTypeLabel}</span>
       </div>
     </div>
   );
@@ -1103,7 +1493,7 @@ function DataPanel({ categories, searchTerm, onSearchChange, onCycleSort, links 
           </span>
         </div>
         {/* Username */}
-        <div className="flex-1 min-w-0 px-2">
+        <div className="flex-1 min-w-0 px-2 flex items-center gap-2">
           <a href={links[item.username] || `https://instagram.com/${item.username}`} target="_blank" rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
             className="text-sm font-medium text-gray-300 hover:text-cyan-300 truncate transition-colors flex items-center gap-1.5 inline-flex"
@@ -1111,6 +1501,11 @@ function DataPanel({ categories, searchTerm, onSearchChange, onCycleSort, links 
             @{item.username}
             <ExternalLink size={11} className="opacity-0 group-hover:opacity-40 transition-opacity flex-shrink-0" />
           </a>
+          {item.matchedWith && (
+            <span className="text-[10px] text-emerald-400/90 font-mono px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/25 truncate" title={`Symbol-matched with: @${item.matchedWith}`}>
+              ≈ @{item.matchedWith}
+            </span>
+          )}
         </div>
         {/* Date (temporal) */}
         {isTemporal && (
@@ -1313,6 +1708,18 @@ function DataPanel({ categories, searchTerm, onSearchChange, onCycleSort, links 
                 >
                   <ExternalLink size={12} />
                   Open {selectedUsers.size}
+                </button>
+
+                <button
+                  onClick={() => {
+                    const list = Array.from(selectedUsers).join('\n');
+                    navigator.clipboard.writeText(list);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1 bg-white/10 hover:bg-white/20 text-gray-200 hover:text-white rounded-lg transition-colors border border-white/10 font-bold shadow-lg text-[11px]"
+                  title={`Copy ${selectedUsers.size} selected usernames`}
+                >
+                  <Copy size={12} />
+                  Copy {selectedUsers.size}
                 </button>
 
                 <button
